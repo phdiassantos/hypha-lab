@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Hypha Lab: a mycology game. Choose the feeding mode, spore-producing structure, dispersal and key structure that let a fungus survive six real habitats.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Hypha Lab">
+<meta property="og:description" content="Build a fungus that survives. Match feeding, spores and structures to each habitat.">
+<meta property="og:url" content="https://phdiassantos.github.io/hypha-lab/">
+<meta property="og:image" content="https://phdiassantos.github.io/hypha-lab/cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="author" content="Pedro H. D. Santos, LSU Alexandria">
+<style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<title>Hypha Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Serif:ital@0;1&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a living diorama (canvas) on the left that grows the fungus as you choose traits; the field notebook on the right. Stacks on phones with the diorama pinned on top. Single dark "forest floor at dusk" world by choice. */
+:root{
+  --bg:#0D1310; --panel:#151E19; --panel2:#1C2821; --ink:#EEEADF; --muted:#9AA89D; --line:#28362E;
+  --amber:#E9B44C; --amber-soft:rgba(233,180,76,.13); --moss:#A6C682;
+  --good:#7DC890; --part:#E9B44C; --bad:#EA8B7B;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --serif:"Instrument Serif", Georgia, "Times New Roman", serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:14px 56px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top, 0px);z-index:10;background:var(--bg)}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;line-height:1.05;letter-spacing:-.015em}
+p{margin:0}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.label{font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.sci{font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:0}
+
+.wrap{max-width:1160px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:9px;background:none;border:0;padding:0;font-family:var(--display);font-weight:800;font-size:21px;letter-spacing:-.02em}
+.brand svg{width:26px;height:26px}
+.pill{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill b{color:var(--amber);font-weight:500}
+
+.play{display:grid;gap:20px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:900px){
+  .play.two{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:start}
+  .play.two .stage{position:sticky;top:16px}
+}
+.stage{display:flex;flex-direction:column;gap:8px;min-width:0}
+@media (max-width:899px){
+  .stage.stick{position:sticky;top:env(safe-area-inset-top, 0px);z-index:5;background:var(--bg);padding-block:4px 10px}
+}
+.frame{position:relative;border-radius:14px;overflow:hidden;background:#000;box-shadow:0 0 0 1px var(--line),0 24px 48px -24px rgba(0,0,0,.8)}
+canvas{display:block;width:100%;aspect-ratio:640/440;max-width:100%;transition:filter 2.6s ease}
+.stage.wither canvas{filter:saturate(.25) brightness(.72) sepia(.3)}
+.cap{position:absolute;left:10px;bottom:10px;max-width:calc(100% - 20px);background:rgba(10,15,12,.74);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:6px 11px 7px;font-size:13.5px;line-height:1.3;color:#EEEADF;font-weight:600}
+.cap .k{display:block;font-family:var(--mono);font-weight:500;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--amber);margin-bottom:1px}
+.cap.show{animation:capIn .55s cubic-bezier(.2,1.2,.4,1) both}
+@keyframes capIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.hud{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.chip{border:1px solid var(--line);border-radius:9px;padding:6px 8px 7px;background:var(--panel);min-width:0}
+.chip .k{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chip .v{display:block;font-size:12.5px;line-height:1.2;font-weight:600;color:var(--muted);overflow-wrap:break-word;hyphens:auto}
+@media (max-width:480px){.chip{padding:5px 6px 6px}.chip .k{font-size:8.5px;letter-spacing:.05em}.chip .v{font-size:11px}.cap{left:8px;bottom:8px;padding:4px 8px 5px;font-size:12px}.cap .k{font-size:9px}}
+.chip.set{border-color:rgba(233,180,76,.4)}
+.chip.set .k{color:var(--amber)}
+.chip.set .v{color:var(--ink)}
+.chip.cur{box-shadow:inset 0 0 0 1px var(--amber)}
+.chip.pop{animation:pop .6s cubic-bezier(.3,1.7,.5,1)}
+@keyframes pop{0%{transform:scale(.9)}60%{transform:scale(1.05)}100%{transform:none}}
+
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+/* home */
+.hero{display:flex;flex-direction:column;gap:12px}
+.hero h1{font-size:clamp(36px,5.2vw,56px);font-weight:800}
+.hero h1 .sci{font-size:1.12em;color:var(--amber)}
+.hero p{color:var(--muted);max-width:56ch}
+.how{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.how li{border-top:2px solid var(--amber);padding-top:7px;font-size:13px;line-height:1.35;color:var(--muted)}
+.how b{display:block;color:var(--ink);font-weight:600;font-size:13.5px}
+@media (max-width:480px){.how{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.missions{display:flex;flex-direction:column;gap:10px}
+.mcard{display:grid;grid-template-columns:104px minmax(0,1fr) auto;gap:14px;align-items:center;text-align:left;width:100%;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 14px 8px 8px;transition:border-color .2s,transform .2s}
+.mcard:hover{border-color:var(--amber);transform:translateY(-1px)}
+.mcard img{width:104px;height:72px;object-fit:cover;border-radius:7px;display:block;background:var(--panel2)}
+.mcard h3{font-size:17px;font-weight:700}
+.mcard .where{font-size:13px;color:var(--muted)}
+.mcard .st{font-family:var(--mono);font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.mcard .st.done{color:var(--good)}
+
+/* mission */
+.brief{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.brief .head{padding:14px 16px 12px;display:flex;flex-direction:column;gap:6px}
+.brief h2{font-size:26px;font-weight:700}
+.brief p{font-size:15px}
+.cond{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line)}
+.cond div{padding:8px 16px;border-bottom:1px solid var(--line);font-size:13.5px;line-height:1.35;min-width:0}
+.cond div:nth-child(odd){border-right:1px solid var(--line)}
+.cond div:nth-last-child(-n+2){border-bottom:0}
+.cond .label{display:block;font-size:10px;margin-bottom:1px}
+.steps{display:flex;gap:6px}
+.steps span{flex:1;height:4px;border-radius:2px;background:var(--line);transition:background .3s}
+.steps span.on{background:var(--moss)}
+.steps span.now{background:var(--amber)}
+.q{display:flex;flex-direction:column;gap:4px}
+.q h3{font-size:24px;font-weight:700}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:480px){.opts{grid-template-columns:1fr}}
+.opt{display:flex;flex-direction:column;gap:4px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 14px;min-width:0;transition:border-color .2s,background .2s}
+.opt:hover{border-color:rgba(233,180,76,.6)}
+.opt strong{font-weight:600;font-size:15px}
+.tag{align-self:flex-start;font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid}
+.tag.sx{color:#E7B6D6;border-color:rgba(231,182,214,.45);background:rgba(231,182,214,.08)}
+.tag.ax{color:#9ED3D0;border-color:rgba(158,211,208,.45);background:rgba(158,211,208,.08)}
+.cycle{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cycle div{display:flex;flex-direction:column;gap:5px;font-size:13.5px;line-height:1.4;background:var(--panel2);border-radius:9px;padding:9px 11px;min-width:0}
+@media (max-width:480px){.cycle{grid-template-columns:1fr}}
+.opt span{font-size:13.5px;color:var(--muted);line-height:1.4}
+.opt.sel{border-color:var(--amber);background:var(--amber-soft);box-shadow:inset 0 0 0 1px var(--amber)}
+.nav{display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.btn{background:var(--ink);color:var(--bg);border:0;border-radius:999px;padding:11px 20px;font-weight:700;font-size:15px}
+.btn[disabled]{opacity:.3;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.grow{background:var(--amber);color:#1B1408}
+
+/* result */
+.scorehead{display:flex;align-items:center;gap:16px}
+.ring{width:92px;height:92px;flex:none}
+.ring text{font-family:var(--display);font-weight:800;fill:var(--ink)}
+.scorehead h2{font-size:26px;font-weight:700}
+.scorehead p{color:var(--muted);font-size:14px;margin-top:4px}
+.fb{display:flex;flex-direction:column;gap:10px}
+.fbi{display:grid;grid-template-columns:28px minmax(0,1fr);gap:11px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+.mark{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:13px;font-weight:500;color:#10160F}
+.mark.g{background:var(--good)} .mark.p{background:var(--part)} .mark.b{background:var(--bad)}
+.fbi .t{font-size:14px;line-height:1.45}
+.fbi .t b{font-weight:600}
+.fbi .pts{font-family:var(--mono);font-size:12px;color:var(--muted);float:right;margin-left:8px;font-variant-numeric:tabular-nums}
+.fbi .ans{display:block;margin-top:4px;color:var(--muted);font-size:13px}
+.reveal{border:1px solid rgba(233,180,76,.5);border-radius:12px;background:linear-gradient(160deg,rgba(233,180,76,.09),transparent 60%),var(--panel);padding:16px;display:flex;flex-direction:column;gap:8px}
+.reveal h3{font-family:var(--serif);font-style:italic;font-weight:400;font-size:34px;letter-spacing:0;color:var(--amber)}
+.reveal .common{font-weight:600}
+.reveal p.txt{font-size:14.5px}
+
+/* final */
+.final{max-width:620px;display:flex;flex-direction:column;gap:14px}
+.final h2{font-size:clamp(36px,7vw,52px);font-weight:800}
+.table{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.table div{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.table div span:last-child{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.foot{font-size:12.5px;color:var(--muted)}
+.fade{animation:fade .4s ease both}
+@keyframes fade{from{opacity:.001;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.fade,.cap.show,.chip.pop{animation:none}canvas{transition:none}}
+.info{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px 13px;display:flex;flex-direction:column;gap:7px}
+.info h4{margin:0;font-family:var(--display);font-size:17px;line-height:1.2;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
+.info p{font-size:14.5px;line-height:1.5;color:var(--ink)}
+.info p.muted{color:var(--muted)}
+.info .look{font-size:13px;color:var(--muted)}
+.info .look b{color:var(--amber);font-weight:600}
+.hintb{align-self:flex-start;background:none;border:1px dashed rgba(233,180,76,.5);color:var(--amber);border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600}
+.clue{border-left:3px solid var(--amber);padding:2px 0 2px 10px;font-size:14px!important;color:var(--ink)}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.log li{display:flex;gap:10px;align-items:flex-start;opacity:0;animation:logIn .5s ease both;animation-delay:var(--d)}
+.log li .mk{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#0D1310;margin-top:1px}
+.log .mk.g{background:var(--good)}.log .mk.p{background:var(--part)}.log .mk.b{background:var(--bad)}
+.log li div{font-size:13.5px;line-height:1.45;color:var(--muted)}
+.log li b{color:var(--ink);font-weight:600}
+.log .st{font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin-left:6px}
+.log .st.g{color:var(--good)}.log .st.p{color:var(--part)}.log .st.b{color:var(--bad)}
+.log li.out{border-top:1px solid var(--line);padding-top:9px}
+.log li.out div{color:var(--ink);font-size:14px}
+@keyframes logIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.log li{animation:none;opacity:1}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="bar" id="bar"></header>
+  <div class="play two" id="play">
+    <div class="stage" id="stage">
+      <div class="frame"><canvas id="cv" role="img" aria-label="Animated diorama of your fungus growing in its habitat"></canvas><div class="cap" id="cap" hidden></div></div>
+      <div class="hud" id="hud"></div>
+      <div class="info" id="info" hidden></div>
+    </div>
+    <main class="col" id="app"></main>
+  </div>
+</div>
+
+<script>
+/* ================= GAME DATA ================= */
+const SLOTS=[
+ {id:'feed',label:'Feeding',q:'How will your fungus get food?'},
+ {id:'body',label:'Reproduction',q:'Which spore-producing structure will it make?'},
+ {id:'move',label:'Dispersal',q:'How will its propagules travel?'},
+ {id:'tool',label:'Key structure',q:'Which special structure does it need?'}
+];
+const OPTS={
+ feed:[
+  {id:'lignin',n:'White-rot saprotroph',d:'Lignin-modifying enzymes (lignin and manganese peroxidases, laccases) break down lignin along with cellulose in dead wood.'},
+  {id:'fast',n:'Fast-growing saprotroph',d:'Grows quickly on simple sugars and easy nutrients, and finishes before competitors move in.'},
+  {id:'ecm',n:'Ectomycorrhizal mutualist',d:'Hyphae sheathe tree root tips and trade soil water, nitrogen and phosphorus for the host’s photosynthates.'},
+  {id:'biotroph',n:'Obligate biotroph',d:'Takes nutrients only from living host cells, keeps the host alive, and usually cannot grow on culture media.'},
+  {id:'lichen',n:'Lichenized fungus',d:'Forms a thallus with a photobiont (green alga or cyanobacterium) that supplies sugars by photosynthesis.'},
+  {id:'predator',n:'Nematophagous fungus',d:'Lives as a saprotroph but captures and digests nematodes for nitrogen when it runs short.'}],
+ body:[
+  {id:'gilled',n:'Gilled basidioma',sex:'Sexual',sp:'basidiospores',d:'A mushroom with lamellae (gills) under the pileus. Each basidium makes four basidiospores by meiosis.'},
+  {id:'bracket',n:'Poroid basidioma (bracket)',sex:'Sexual',sp:'basidiospores',d:'A tough, shelf-like basidioma. The hymenophore is a layer of tubes, and basidiospores drop from the pores.'},
+  {id:'truffle',n:'Hypogeous ascoma (truffle)',sex:'Sexual',sp:'ascospores',d:'A closed ascoma that forms underground. Asci with ascospores stay sealed inside and are never discharged.'},
+  {id:'cup',n:'Apothecium (cup or disc)',sex:'Sexual',sp:'ascospores',d:'An open ascoma. Asci in the exposed hymenium burst and shoot their ascospores into the air.'},
+  {id:'sporangium',n:'Sporangiophore and sporangium',sex:'Asexual',sp:'sporangiospores',d:'One tall hypha carries a sac of sporangiospores made by mitosis. They form inside the sac, so they are not conidia.'},
+  {id:'pustule',n:'Conidiophores or uredinia',sex:'Asexual',sp:'conidia or urediniospores',d:'Conidiophores (free or in sporodochia), or rust uredinia, make huge numbers of mitotic spores fast, with no mating.'}],
+ move:[
+  {id:'wind',n:'Wind',d:'Small, dry spores (basidiospores, ascospores, conidia or urediniospores) carried by moving air.'},
+  {id:'animals',n:'Mycophagous animals',d:'Volatile compounds lead animals to eat the fruiting body. Thick-walled spores pass through the gut and land in feces.'},
+  {id:'explosive',n:'Discharge toward light',d:'Turgor pressure builds in a swollen cell until spores, or a whole sporangium, are shot off, aimed by phototropism.'},
+  {id:'water',n:'Water',d:'Rain splash and soil water films move spores, especially conidia in slime or in soil pores.'},
+  {id:'fragments',n:'Soredia and isidia',d:'Vegetative propagules: tiny pieces that hold both the fungal hyphae and the photobiont.'},
+  {id:'insects',n:'Insects',d:'Spores in a foul-smelling slime (gleba) stick to flies that come to feed.'}],
+ tool:[
+  {id:'rhizomorphs',n:'Rhizomorphs',d:'Root-like cords of parallel hyphae with a melanized rind and a growing tip. They conduct water and nutrients through soil.'},
+  {id:'hartig',n:'Mantle and Hartig net',d:'A hyphal sheath around the root tip, plus a net of hyphae between root cells that never enters them.'},
+  {id:'haustoria',n:'Appressorium and haustoria',d:'The appressorium attaches and a penetration peg breaks the cuticle. Haustoria then press into living cells to absorb nutrients.'},
+  {id:'walls',n:'Melanized, pigmented walls',d:'Melanin in hyphal and spore walls, and cortex pigments such as usnic acid, screen UV and resist drying out.'},
+  {id:'fast',n:'Short life cycle',d:'Goes from spore to new sporangia in a few days.'},
+  {id:'traps',n:'Adhesive hyphal networks',d:'Three-dimensional nets of sticky hyphal loops that catch nematodes. Trap hyphae then penetrate and digest them.'}]
+};
+const SEE={"feed": {"lignin": "Hyphae push into the wood and release enzymes outside their cells. Laccases and peroxidases break lignin apart, and the hyphae absorb the sugars freed from the cellulose. The wood turns pale and stringy: white rot.", "fast": "Hyphae race across the surface and absorb simple sugars right away. Growth is fast but shallow, so once the easy food is gone, the advantage is gone too.", "ecm": "Hyphae wrap the young root tips and spread far out into the soil. They pick up water, nitrogen and phosphorus and pass them to the root in exchange for sugar.", "biotroph": "Hyphae grow between the living host cells without killing them. The yellow halos show where the fungus is drawing nutrients out of those cells.", "lichen": "A lichen thallus forms. Fungal hyphae build the body and hold algal cells inside it. The algae photosynthesize and share their sugars with the fungus.", "predator": "Hyphae feed on dead plant material and build small loops when nematodes are near. A captured nematode becomes a nitrogen meal."}, "body": {"gilled": "Mushrooms rise from the mycelium. Their gills are lined with basidia. Inside each basidium the two nuclei fuse (karyogamy), meiosis follows, and four basidiospores form on tiny stalks called sterigmata. The zoomed view shows each step.", "bracket": "A tough shelf grows out sideways. Its underside is packed with tiny tubes lined with basidia, and the basidiospores drop out through the pores. A bracket can keep growing for years.", "truffle": "A closed ascoma grows underground. Inside, sealed asci hold ascospores made by meiosis. They are never shot out; they wait for an animal to dig them up.", "cup": "Open cups form. Their inner surface, the hymenium, is a palisade of asci. Each ascus holds eight ascospores made by meiosis and shoots them out of its tip.", "sporangium": "Stalks called sporangiophores rise, each with a clear swollen vesicle and a black sporangium on top. Inside the sporangium, sporangiospores form by mitosis. No mating is needed.", "pustule": "Masses of asexual spores form fast, with no mating. In a rust, uredinia burst through the leaf surface. In most other fungi, conidiophores carry conidia made by mitosis."}, "move": {"wind": "Tiny, dry spores leave the fruiting body and drift on the air. Most land somewhere useless, so the fungus makes them by the millions.", "animals": "The ripe fruiting body gives off a strong smell. An animal finds it, eats it, and later drops the spores in its feces somewhere new.", "explosive": "Water pressure builds in a swollen cell until it bursts and shoots the spores, or the whole sporangium, away. Watch where they land.", "water": "Raindrops hit the fungus and splash spores a short distance. In soil, spores drift through the water films between the particles.", "fragments": "Small pieces break off that hold fungal hyphae and algal cells together, so each piece can start a new lichen right where it lands.", "insects": "The spores sit in a smelly, sticky slime. Flies come to feed and fly off with spores stuck to their legs and bodies."}, "tool": {"rhizomorphs": "Thick, dark cords grow out through the soil toward new food. The black rind protects the hyphae inside, which carry water and nutrients along the cord.", "hartig": "The zoomed view shows a root in section: a mantle of hyphae over the surface, and the Hartig net between the root cells. Sugar (orange) moves to the fungus; phosphorus and water (blue) move to the plant.", "haustoria": "The zoomed view shows the infection: a spore germinates, forms an appressorium, pushes a penetration peg through the cuticle, and haustoria form inside the living cells.", "walls": "The zoomed view shows a cell with a dark, pigmented wall. The pigment blocks UV, and the cell can dry out completely and revive when it gets wet again.", "fast": "The dial in the zoomed view counts the days: spore, germ tube, mycelium, new sporangia. The whole life cycle takes only a few days.", "traps": "The zoomed view shows sticky hyphal loops. A nematode swims in and gets stuck, and the fungus grows into it and digests it."}};
+const M=[
+ {id:'stump',name:'Oak stumps after a storm',where:'Bottomland hardwood forest, Louisiana',
+  brief:'A storm snapped dozens of oaks. The stumps are scattered across the forest floor, each one a pile of food locked inside tough lignin. You need to eat wood and reach the next stump before your rivals do.',
+  cond:[['Food','Dead oak wood, about 25% lignin'],['Light','Deep shade'],['Moisture','High, humid summers'],['Distance','Stumps 5 to 20 m apart']],
+  s:{feed:{best:'lignin',why:'White-rot enzymes degrade lignin, which opens up the cellulose in the wood as food.',part:{fast:[8,'Simple sugars in wood run out quickly. Without lignin-degrading enzymes you starve once they are gone.']},miss:'The food here is dead wood. You need enzymes that can break down lignin.'},
+     body:{best:'gilled',why:'Honey mushrooms make clusters of gilled basidiomata at stump bases in fall. Basidia on the gills produce basidiospores by meiosis. This is the sexual stage.',part:{bracket:[18,'A poroid basidioma also makes basidiospores (turkey tail does this on logs), but Armillaria uses fleshy, short-lived gilled basidiomata.']},miss:'The basidiospores need to reach open air above the forest floor.'},
+     move:{best:'wind',why:'Basidiospores are actively released from the basidia and are small and dry, so even weak forest air currents carry them.',part:{insects:[8,'Stinkhorns use flies, but wood-decay basidiomycetes rely on huge numbers of basidiospores in the air.']},miss:'Spores need to travel to new stumps across the forest.'},
+     tool:{best:'rhizomorphs',why:'Black, bootlace-like rhizomorphs grow through soil from stump to stump. A melanized rind protects the inner hyphae that conduct water and nutrients.',part:{walls:[8,'Rhizomorphs do have a melanized rind, but here the main job is travel.']},miss:'The stumps are meters apart. You need a way across the soil.'}},
+  r:{sci:'Armillaria',common:'Honey mushroom',group:'Basidiomycota · Agaricales · Physalacriaceae',
+     sex:'Basidiospores, made on the gills of the basidiomata.',asex:'Rarely any asexual spores. It spreads mainly by rhizomorphs and mycelium.',
+     text:'Honey mushrooms move from stump to stump with rhizomorphs, the "shoestrings" behind the disease name shoestring root rot. One Armillaria individual in Oregon covers about 9 km² and may be thousands of years old, which makes it one of the largest organisms on Earth. Some species also attack weakened living trees.'}},
+ {id:'roots',name:'Under a pecan orchard',where:'Pecan orchard soil, 5 to 10 cm deep',
+  brief:'Pecan roots spread through the soil. The trees have plenty of sugar from photosynthesis but need more phosphorus and water. Down here there is no wind and no light, so spores cannot simply fly away.',
+  cond:[['Food','Tree sugar, if you can trade for it'],['Light','None'],['Partner','Living pecan roots'],['Visitors','Squirrels, pigs, armadillos']],
+  s:{feed:{best:'ecm',why:'As an ectomycorrhizal partner you sheathe the root tips and trade soil nutrients for the tree’s sugar. Both partners win.',part:{},miss:'Living roots are offering sugar. The best move is a trade, not an attack.'},
+     body:{best:'truffle',why:'A hypogeous ascoma keeps the asci and their ascospores (the sexual spores) safe and moist underground until an animal digs it up.',part:{cup:[10,'Right lineage: truffles evolved from apothecial ancestors in the Pezizales. But an apothecium needs open air to discharge its ascospores.']},miss:'You are below ground, so the spore-producing structure has to work without air currents.'},
+     move:{best:'animals',why:'Ripe ascomata release strong volatiles. Mycophagous animals smell them through the soil and eat them, and the thick-walled ascospores pass through the gut to a new spot.',part:{},miss:'No wind or light reaches you. Who could carry the ascospores up to the surface?'},
+     tool:{best:'hartig',why:'The mantle covers the root tip, and the Hartig net grows between root cells without entering them. That is where sugar and nutrients change hands.',part:{walls:[10,'Thick, ornamented ascospore walls help the spores survive an animal’s gut, but the main job here is trading with roots.']},miss:'You need a structure built for swapping food with the root.'}},
+  r:{sci:'Tuber lyonii',common:'Pecan truffle',group:'Ascomycota · Pezizales · Tuberaceae',
+     sex:'Ascospores, sealed in asci inside the hypogeous ascoma.',asex:'Some Tuber species form small mats of conidia on the soil surface.',
+     text:'The pecan truffle grows with pecan roots across the southeastern United States. Growers once ignored it, but chefs now buy it, and researchers are testing how to farm it in pecan orchards. Like all truffles, it descends from apothecial cup fungi that lost the ability to shoot their ascospores.'}},
+ {id:'leaf',name:'A soybean leaf in July',where:'Soybean field, Gulf Coast',
+  brief:'Thousands of hectares of the same soybean variety, warm nights, and dew every morning. The leaves are alive and full of nutrients. A fungus that can feed without killing them could multiply very fast.',
+  cond:[['Food','Living leaf cells'],['Moisture','Dew 6 to 12 hours a night'],['Temperature','20 to 28 °C'],['Host','One crop, wall to wall']],
+  s:{feed:{best:'biotroph',why:'As an obligate biotroph you keep the leaf cells alive while you feed, so the leaf keeps making food for you.',part:{},miss:'The food here is a living leaf. Killing it or ignoring it wastes the opportunity.'},
+     body:{best:'pustule',why:'Uredinia break through the leaf epidermis and release urediniospores, the asexual, repeating stage of the rust. These are mitotic spores, but they are not conidia. A new generation appears about every 10 days.',part:{},miss:'In a huge uniform field, the winner is whoever makes the most asexual spores the fastest.'},
+     move:{best:'wind',why:'Urediniospores ride the wind for hundreds of kilometers and land in the next field.',part:{water:[12,'Rain splash spreads urediniospores within a field, but wind moves them between fields and states.']},miss:'Spores need to reach other soybean fields, far away.'},
+     tool:{best:'haustoria',why:'A germinating urediniospore forms an appressorium, and a penetration peg breaks straight through the cuticle. Inside, haustoria press into living cells to absorb sugar.',part:{},miss:'You need a way into a living leaf, and a way to feed without killing it.'}},
+  r:{sci:'Phakopsora pachyrhizi',common:'Asian soybean rust',group:'Basidiomycota · Pucciniales · Phakopsoraceae',
+     sex:'Teliospores in telia, which germinate into basidiospores. This stage is rarely seen and plays no known role in field epidemics.',asex:'Urediniospores in uredinia, the repeating stage that drives epidemics.',
+     text:'Asian soybean rust can cut yields by more than half in bad years. It reached the continental United States in 2004, most likely carried on the winds of Hurricane Ivan. Unlike most rusts, it enters leaves directly through the cuticle instead of through stomata.'}},
+ {id:'rock',name:'Sun-baked granite',where:'Rock outcrop in full sun',
+  brief:'Bare rock in full sun. No soil, no dead leaves, no roots. A rain shower comes, then weeks of heat and drought. Nothing here makes food except something that can use sunlight.',
+  cond:[['Food','None on the rock itself'],['Light','Full sun, intense UV'],['Water','Rain, then long droughts'],['Surface','Bare stone, near 60 °C in summer']],
+  s:{feed:{best:'lichen',why:'Your photobiont makes sugar by photosynthesis. You, the mycobiont, give it shelter, water and minerals in return.',part:{},miss:'There is nothing to decompose and no host to attack. Something has to make sugar from light.'},
+     body:{best:'cup',why:'Many lichens form apothecia on the thallus surface. Their asci shoot ascospores, the sexual spores of the fungal partner.',part:{pustule:[8,'Many lichens make conidia in pycnidia, but conidia carry only the fungus, not the photobiont.']},miss:'The spore-producing structure sits on the lichen surface, open to the air.'},
+     move:{best:'fragments',why:'Isidia and soredia are vegetative propagules that carry mycobiont and photobiont together, so the new thallus starts with its partner inside.',part:{wind:[12,'Ascospores ride the wind, but each one carries only the mycobiont and must find a compatible photobiont where it lands.']},miss:'A lone spore lands without its photobiont. How can both partners travel together?'},
+     tool:{best:'walls',why:'Cortex pigments such as usnic acid, plus melanins, screen out UV. The thallus can dry out completely and resume photosynthesis within minutes of rain.',part:{},miss:'The threats here are UV and drying out. You need protection.'}},
+  r:{sci:'Xanthoparmelia',common:'Rock shield lichens',group:'Ascomycota · Lecanorales · Parmeliaceae',
+     sex:'Ascospores from apothecia on the thallus. They carry the mycobiont only.',asex:'Conidia in pycnidia, plus vegetative isidia in many species.',
+     text:'Rock shield lichens are among the most common lichens on sunny rock worldwide. Usnic acid gives them their yellow-green color and screens out UV. Lichens like these slowly break rock down and help build the first soil, which is why they are called pioneer organisms.'}},
+ {id:'dung',name:'A fresh cowpat',where:'Cattle pasture',
+  brief:'A cow left a fresh pat in the pasture. It is rich in easy food, but within days it will dry out or be taken over by other fungi. Cows refuse to graze near dung, so spores dropped beside the pat go nowhere.',
+  cond:[['Food','Partly digested grass'],['Lifespan','A few days'],['Neighbors','Cows avoid grass near dung'],['Light','Morning sun']],
+  s:{feed:{best:'fast',why:'Dung is full of easy nutrients. A fast-growing saprotroph grabs them before rivals do.',part:{lignin:[8,'Dung does contain plant fiber, but slow lignin degradation loses the race here.']},miss:'This food is rich and temporary. Speed matters more than power.'},
+     body:{best:'sporangium',why:'A sporangiophore holds up a black sporangium full of sporangiospores. These are asexual spores made by mitosis inside a sac, so they are not conidia.',part:{},miss:'You need to hold your spores up, ready to launch away from the pat.'},
+     move:{best:'explosive',why:'Turgor pressure in the swollen subsporangial vesicle shoots the whole sporangium toward the light, onto clean grass meters away.',part:{animals:[12,'Cows do the last step by eating the grass. But first the sporangium has to get away from the pat.']},miss:'Cows avoid grass near dung. The spores need to land far away, on grass the cows will eat.'},
+     tool:{best:'fast',why:'You go from sporangiospore to ready-to-fire sporangium in about four days, before the pat dries.',part:{walls:[12,'The tough, melanized sporangium wall does survive a trip through the cow, but speed comes first.']},miss:'The cowpat lasts only days. You have to finish your life cycle fast.'}},
+  r:{sci:'Pilobolus',common:'Hat thrower fungus',group:'Mucoromycota · Mucorales · Pilobolaceae',
+     sex:'Zygospores formed after two compatible hyphae fuse. They are rarely seen.',asex:'Sporangiospores inside the sporangium that gets launched.',
+     text:'Pilobolus fires its sporangium up to 2.5 m, with an acceleration around 20,000 g, one of the fastest launches in nature. The subsporangial vesicle works like a lens that focuses light, so the fungus aims at the sun. The sporangium sticks to grass, a cow eats it, and the sporangiospores come out in a new cowpat.'}},
+ {id:'soil',name:'Crowded garden soil',where:'Tomato bed, nitrogen-poor soil',
+  brief:'Root-knot nematodes are everywhere in this soil, attacking tomato roots. Decaying leaves are plentiful but low in nitrogen. The nematodes themselves are full of it.',
+  cond:[['Food','Decaying leaves, low nitrogen'],['Prey','Nematodes, about 1 mm long'],['Water','Thin films between soil grains'],['Problem','Nematodes wriggle away fast']],
+  s:{feed:{best:'predator',why:'Nematodes are packed with nitrogen. A nematophagous lifestyle solves your nutrient problem.',part:{fast:[12,'Good start. This fungus lives as a saprotroph most of the time and switches to hunting when nitrogen runs low.']},miss:'Nitrogen is the limit here, and the nematodes are full of it.'},
+     body:{best:'pustule',why:'Simple, upright conidiophores produce conidia quickly and repeatedly, with no mating. These are the asexual spores.',part:{},miss:'In soil, a big sexual fruiting body is a waste. Small, fast asexual spores work best.'},
+     move:{best:'water',why:'Conidia move with water films through soil pores and with splashing rain.',part:{wind:[8,'Conidia can blow around at the surface, but most travel happens in soil water.']},miss:'You live inside the soil, where wind barely reaches.'},
+     tool:{best:'traps',why:'When it senses nematode signal molecules, the fungus builds three-dimensional adhesive hyphal networks. A trapped nematode is penetrated and digested within hours.',part:{},miss:'Nematodes move fast. You need a way to catch and hold them.'}},
+  r:{sci:'Arthrobotrys oligospora',common:'Nematode-trapping fungus',group:'Ascomycota · Orbiliales · Orbiliaceae',
+     sex:'Ascospores from tiny apothecia of its Orbilia sexual stage, which is rarely found.',asex:'Two-celled conidia on upright conidiophores.',
+     text:'Arthrobotrys oligospora builds its traps only when nematodes are nearby, by detecting their ascaroside signal molecules. Because it kills root-knot and other plant-parasitic nematodes, it is studied as a biological control agent, a living alternative to chemical nematicides.'}}
+];
+
+/* ================= DRAWING KIT ================= */
+const W=640,H=440,TAU=Math.PI*2;
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const ease=t=>1-Math.pow(1-clamp(t),3);
+const back=t=>{t=clamp(t);const c1=1.5,c3=c1+1;return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2)};
+function rng(seed){let a=seed>>>0;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const rnd=Math.random;
+function lg(c,x0,y0,x1,y1,s){const g=c.createLinearGradient(x0,y0,x1,y1);s.forEach(([o,col])=>g.addColorStop(o,col));return g}
+function rg(c,x0,y0,r0,x1,y1,r1,s){const g=c.createRadialGradient(x0,y0,r0,x1,y1,r1);s.forEach(([o,col])=>g.addColorStop(o,col));return g}
+function circ(c,x,y,r){c.beginPath();c.arc(x,y,Math.max(0,r),0,TAU)}
+function ell(c,x,y,rx,ry,rot=0){c.beginPath();c.ellipse(x,y,Math.max(0,rx),Math.max(0,ry),rot,0,TAU)}
+function bz(p,t){const u=1-t;return[u*u*u*p[0][0]+3*u*u*t*p[1][0]+3*u*t*t*p[2][0]+t*t*t*p[3][0],u*u*u*p[0][1]+3*u*u*t*p[1][1]+3*u*t*t*p[2][1]+t*t*t*p[3][1]]}
+
+function stumpPath(c,cx,base,rx,h){const top=base-h;c.beginPath();c.moveTo(cx-rx-9,base+2);c.quadraticCurveTo(cx-rx-2,base-h*.3,cx-rx,top);c.lineTo(cx+rx,top);c.quadraticCurveTo(cx+rx+2,base-h*.3,cx+rx+11,base+2);c.closePath()}
+function drawStump(c,cx,base,rx,h){
+  const top=base-h;stumpPath(c,cx,base,rx,h);
+  c.fillStyle=lg(c,cx-rx,0,cx+rx,0,[[0,'#26180E'],[.3,'#5E4129'],[.62,'#4A321F'],[1,'#1F140B']]);c.fill();
+  const R=rng(cx|0);c.strokeStyle='rgba(18,10,5,.6)';c.lineWidth=1.3;
+  for(let i=0;i<rx/4;i++){const x=cx-rx+R()*2*rx;c.beginPath();c.moveTo(x,top+3);c.bezierCurveTo(x+R()*8-4,top+h*.4,x+R()*8-4,top+h*.7,x+(x-cx)*.12,base);c.stroke()}
+  ell(c,cx,top,rx,rx*.22);c.fillStyle=rg(c,cx-rx*.2,top,2,cx,top,rx,[[0,'#D4A56C'],[1,'#94683B']]);c.fill();
+  c.strokeStyle='rgba(115,72,36,.55)';c.lineWidth=1;for(let k=1;k<6;k++){ell(c,cx+(R()-.5)*3,top,rx*k/6.2,rx*.22*k/6.2);c.stroke()}
+  c.lineWidth=3.5;c.strokeStyle='#33210F';ell(c,cx,top,rx,rx*.22);c.stroke();
+}
+function root(c,p,w){c.lineCap='round';c.beginPath();c.moveTo(...p[0]);c.bezierCurveTo(...p[1],...p[2],...p[3]);
+  c.strokeStyle='#4A321D';c.lineWidth=w+2.5;c.stroke();c.strokeStyle='#C7A478';c.lineWidth=w;c.stroke();c.strokeStyle='rgba(255,240,210,.35)';c.lineWidth=w*.3;c.stroke()}
+function leafPath(c){c.beginPath();c.moveTo(82,262);c.bezierCurveTo(170,138,420,120,582,200);c.bezierCurveTo(470,302,230,334,82,262);c.closePath()}
+const rockTop=x=>208+Math.pow((x-330)/280,2)*110;
+function rockPath(c){const R=rng(5);c.beginPath();c.moveTo(40,H);c.lineTo(40,rockTop(40)+10);for(let x=50;x<=620;x+=10)c.lineTo(x,rockTop(x)+(R()-.5)*4);c.lineTo(625,H);c.closePath()}
+function grassBlades(c,y0,x0,x1,n,hmin,hmax,t,seed,cols){const R=rng(seed);for(let i=0;i<n;i++){const x=x0+R()*(x1-x0),h=hmin+R()*(hmax-hmin),sw=Math.sin(t*1.6+x*.05)*2.2*(h/20);c.strokeStyle=cols[i%cols.length];c.lineWidth=1.6;c.beginPath();c.moveTo(x,y0+R()*4);c.quadraticCurveTo(x+sw*.5,y0-h*.5,x+sw+(R()-.5)*4,y0-h);c.stroke()}}
+
+/* ================= HABITAT SCENES ================= */
+const HABS={
+ stump:{ground:332,origin:[270,296],box:[194,246,346,334],
+  clip(c){stumpPath(c,270,336,80,92)},
+  cap:[396,333],side:[352,284,1],under:[300,392],flat:[150,333],
+  patchPt:R=>{const a=R()*TAU,u=Math.sqrt(R())*.8;return[270+Math.cos(a)*80*u,244+Math.sin(a)*17*u]},
+  surf:x=>x>192&&x<348?244:332,walkY:332,target:[560,300],bs:1,
+  rbase:[300,340],rt:[[560,336],[110,418],[628,410]],
+  bg(c){
+   c.fillStyle=lg(c,0,0,0,334,[[0,'#0E1914'],[.6,'#20332A'],[1,'#3A482C']]);c.fillRect(0,0,W,334);
+   c.fillStyle='rgba(240,205,130,.07)';[[110,90],[270,70],[400,110]].forEach(([x,w])=>{c.beginPath();c.moveTo(x,0);c.lineTo(x+w,0);c.lineTo(x+w+170,334);c.lineTo(x+150,334);c.closePath();c.fill()});
+   const R=rng(11);for(let i=0;i<11;i++){const x=R()*W,w=8+R()*30;c.fillStyle=`rgba(7,13,10,${.3+R()*.45})`;c.fillRect(x,0,w,334)}
+   for(let i=0;i<7;i++){const x=R()*W;c.fillStyle='rgba(30,52,34,.8)';for(let k=0;k<6;k++){ell(c,x+(k-3)*9,326-k%3*5,12,4,(k-3)*.35);c.fill()}}
+   c.fillStyle=lg(c,0,330,0,H,[[0,'#3B2B1C'],[1,'#170F08']]);c.fillRect(0,330,W,H-330);
+   for(let i=0;i<140;i++){c.fillStyle=`rgba(200,170,120,${.05+R()*.12})`;circ(c,R()*W,340+R()*100,.6+R()*1.6);c.fill()}
+   drawStump(c,562,334,30,30);
+   const cols=['#6B4A26','#8A5E2E','#4E3A22','#9C7038','#5C6A2E'];for(let i=0;i<90;i++){c.fillStyle=cols[i%5];ell(c,R()*W,327+R()*12,3+R()*7,1.2+R()*2.2,R()*3);c.fill()}
+   drawStump(c,270,336,80,92);
+  },
+  fx(c,t){c.fillStyle='rgba(255,230,170,.4)';for(let i=0;i<16;i++){const x=(i*47+t*6)%W,y=40+((i*83+t*(4+i%3)*2)%260);circ(c,x,y,.9);c.fill()}}
+ },
+ roots:{ground:172,origin:[430,300],box:[190,200,610,432],ok:(x,y)=>y>182,
+  clip(c){c.beginPath();c.rect(0,178,W,H)},
+  cap:[455,174],side:[114,108,1],under:[392,348],flat:[320,174],
+  patchPt:R=>[250+R()*300,170+R()*4],surf:()=>172,walkY:172,target:[610,150],bs:1,loupe:[W-84,84],
+  rbase:[430,305],rt:[[628,250],[200,425],[600,432]],
+  bg(c){
+   c.fillStyle=lg(c,0,0,0,176,[[0,'#46696A'],[1,'#D9C48C']]);c.fillRect(0,0,W,176);
+   const R=rng(21);for(let i=0;i<8;i++){const x=160+i*66+R()*20;c.fillStyle='rgba(60,48,32,.45)';c.fillRect(x-3,96,6,78);c.fillStyle='rgba(52,78,50,.55)';circ(c,x,90,24+R()*10);c.fill();circ(c,x-18,100,16);c.fill();circ(c,x+18,100,16);c.fill()}
+   c.beginPath();c.moveTo(58,0);c.lineTo(112,0);c.lineTo(116,150);c.quadraticCurveTo(122,172,144,178);c.lineTo(28,178);c.quadraticCurveTo(50,172,54,150);c.closePath();
+   c.fillStyle=lg(c,54,0,116,0,[[0,'#2A1D12'],[.45,'#6E5236'],[1,'#22170E']]);c.fill();
+   c.strokeStyle='rgba(15,9,4,.5)';c.lineWidth=1.4;for(let i=0;i<8;i++){const x=62+i*7;c.beginPath();c.moveTo(x,0);c.bezierCurveTo(x+3,50,x-3,110,x+(i-4),170);c.stroke()}
+   c.fillStyle=lg(c,0,176,0,H,[[0,'#6E4C2E'],[.5,'#4A311D'],[1,'#26180D']]);c.fillRect(0,176,W,H);
+   c.strokeStyle='rgba(0,0,0,.12)';c.lineWidth=1;[230,300,380].forEach(y=>{c.beginPath();c.moveTo(0,y);for(let x=0;x<=W;x+=40)c.lineTo(x,y+Math.sin(x*.02+y)*4);c.stroke()});
+   for(let i=0;i<40;i++){c.fillStyle=`rgba(${150+R()*60},${130+R()*40},${100+R()*30},.5)`;ell(c,R()*W,190+R()*240,2+R()*5,1.5+R()*3,R()*3);c.fill()}
+   for(let i=0;i<220;i++){c.fillStyle=`rgba(230,200,150,${.04+R()*.1})`;circ(c,R()*W,180+R()*260,.5+R()*1.4);c.fill()}
+   c.fillStyle='#5F7D32';c.fillRect(0,168,W,10);
+   grassBlades(c,172,0,W,160,6,16,0,3,['#7C9A3E','#5E7F2C','#93AE52']);
+   [[[[100,178],[200,196],[300,262],[440,300]],11],[[[300,262],[340,320],[380,360],[430,384]],5],[[[200,198],[260,236],[340,236],[480,232]],6],[[[440,300],[480,310],[520,334],[570,352]],4],[[[262,234],[250,300],[270,360],[248,416]],4],[[[480,232],[520,236],[560,226],[600,214]],3]].forEach(([p,w])=>root(c,p,w));
+   [[430,384],[570,352],[248,416],[600,214]].forEach(([x,y])=>{c.fillStyle='#EBD7B4';circ(c,x,y,2.6);c.fill()});
+  }
+ },
+ leaf:{ground:420,origin:[320,232],box:[96,140,580,330],ok:(x,y)=>{const dx=(x-330)/235,dy=(y-232+(x-330)*.12)/68;return dx*dx+dy*dy<1},
+  clip(c){leafPath(c)},
+  cap:[330,228],side:[574,206,1],under:[330,246],flat:[300,226],
+  patchPt:R=>{const a=R()*TAU,u=Math.sqrt(R())*.78;const x=330+Math.cos(a)*220*u;return[x,232-(x-330)*.12+Math.sin(a)*52*u]},
+  surf:x=>x>90&&x<575?236-(x-330)*.12:420,walkY:424,target:[620,110],bs:.72,
+  rbase:[330,232],rt:[[560,206],[120,258]],
+  bg(c){
+   c.fillStyle=lg(c,0,0,0,H,[[0,'#8FB7AE'],[.55,'#E8E3BA'],[1,'#D7D49E']]);c.fillRect(0,0,W,H);
+   const R=rng(31);
+   for(let r=0;r<4;r++){const y=270+r*42;c.fillStyle=`rgba(52,100,48,${.22+r*.15})`;for(let x=-20;x<W+30;x+=24){circ(c,x+(r%2)*12,y+Math.sin(x*.3)*3,17+r*4);c.fill()}c.fillRect(0,y,W,H)}
+   c.strokeStyle='#4C7C32';c.lineWidth=8;c.lineCap='round';c.beginPath();c.moveTo(86,262);c.quadraticCurveTo(48,302,16,356);c.stroke();
+   leafPath(c);c.fillStyle=lg(c,82,150,582,320,[[0,'#83B95A'],[.5,'#56923E'],[1,'#326B2C']]);c.fill();c.strokeStyle='#2C5823';c.lineWidth=2;c.stroke();
+   c.save();leafPath(c);c.clip();
+   c.fillStyle=lg(c,0,140,0,330,[[0,'rgba(255,255,230,.22)'],[.5,'rgba(255,255,230,0)'],[1,'rgba(0,30,0,.25)']]);c.fillRect(0,0,W,H);
+   const mid=[[84,262],[240,208],[430,190],[580,201]];
+   c.strokeStyle='rgba(225,245,190,.55)';c.lineWidth=2.6;c.beginPath();c.moveTo(...mid[0]);c.bezierCurveTo(...mid[1],...mid[2],...mid[3]);c.stroke();
+   c.lineWidth=1.1;c.strokeStyle='rgba(225,245,190,.33)';
+   for(let t=.12;t<.9;t+=.1){const [x,y]=bz(mid,t),s=Math.sin(Math.PI*t);c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+18,y-30*s,x+44,y-64*s);c.stroke();c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+18,y+34*s,x+40,y+72*s);c.stroke()}
+   for(let i=0;i<300;i++){c.fillStyle='rgba(255,255,255,.05)';circ(c,90+R()*490,140+R()*190,.7);c.fill()}
+   c.restore();
+   [[200,214,5],[268,250,3.5],[452,182,4.5],[392,262,3],[520,222,3.6],[160,246,2.8]].forEach(([x,y,r])=>{circ(c,x,y,r);c.fillStyle='rgba(225,245,255,.32)';c.fill();c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=.8;c.stroke();c.fillStyle='rgba(255,255,255,.9)';circ(c,x-r*.35,y-r*.35,r*.28);c.fill()});
+  }
+ },
+ rock:{ground:330,origin:[330,214],box:[110,196,550,262],ok:(x,y)=>y>rockTop(x)-1&&y<rockTop(x)+30,
+  clip(c){rockPath(c)},
+  cap:[330,212],side:[606,320,1],under:[330,300],flat:[306,212],
+  patchPt:R=>{const x=160+R()*340;return[x,rockTop(x)+3+R()*5]},
+  surf:x=>x>40&&x<625?rockTop(x):440,walkY:212,target:[600,250],bs:.78,loupe:[90,86],
+  rbase:[330,216],rt:[[560,246],[110,250]],
+  bg(c){
+   c.fillStyle=lg(c,0,0,0,H,[[0,'#4A90C4'],[.6,'#CFE0DA'],[1,'#F2E2B2']]);c.fillRect(0,0,W,H);
+   c.fillStyle=rg(c,560,70,10,560,70,170,[[0,'rgba(255,240,190,.95)'],[.25,'rgba(255,230,160,.45)'],[1,'rgba(255,230,160,0)']]);c.fillRect(300,0,W,300);
+   circ(c,560,70,30);c.fillStyle='#FFF0B8';c.fill();
+   c.fillStyle='rgba(110,135,108,.55)';c.beginPath();c.moveTo(0,270);for(let x=0;x<=W;x+=20)c.lineTo(x,255+Math.sin(x*.012)*18+Math.sin(x*.05)*5);c.lineTo(W,H);c.lineTo(0,H);c.fill();
+   rockPath(c);c.fillStyle=lg(c,0,200,0,H,[[0,'#CFC7BA'],[.45,'#958C81'],[1,'#5A534B']]);c.fill();
+   c.save();rockPath(c);c.clip();const R=rng(51);
+   for(let i=0;i<420;i++){const x=40+R()*590,y=rockTop(x)+R()*(H-rockTop(x));const k=R();c.fillStyle=k<.4?'rgba(205,150,135,.55)':k<.75?'rgba(35,32,30,.6)':'rgba(250,246,238,.6)';circ(c,x,y,.6+R()*1.8);c.fill()}
+   c.strokeStyle='rgba(40,34,30,.45)';c.lineWidth=1.4;for(let i=0;i<5;i++){let x=100+R()*440,y=rockTop(x)+20+R()*40;c.beginPath();c.moveTo(x,y);for(let k=0;k<6;k++){x+=(R()-.5)*30;y+=12+R()*14;c.lineTo(x,y)}c.stroke()}
+   c.fillStyle=lg(c,0,200,0,280,[[0,'rgba(255,255,255,.25)'],[1,'rgba(255,255,255,0)']]);c.fillRect(0,190,W,90);
+   c.restore();
+  },
+  fx(c,t){c.strokeStyle='rgba(255,230,150,.4)';c.lineWidth=3;c.lineCap='round';for(let i=0;i<12;i++){const a=i/12*TAU+t*.08;c.beginPath();c.moveTo(560+Math.cos(a)*40,70+Math.sin(a)*40);c.lineTo(560+Math.cos(a)*60,70+Math.sin(a)*60);c.stroke()}
+   c.strokeStyle='rgba(255,255,255,.14)';c.lineWidth=1.2;for(let k=0;k<3;k++){c.beginPath();const y0=186-k*14;for(let x=150;x<=510;x+=6){const y=y0+Math.sin(x*.05+t*3+k)*2.5;x===150?c.moveTo(x,y):c.lineTo(x,y)}c.stroke()}}
+ },
+ dung:{ground:340,origin:[320,330],box:[226,302,414,354],ok:(x,y)=>{const dx=(x-320)/96,dy=(y-332)/28;return dx*dx+dy*dy<1},
+  clip(c){ell(c,320,332,98,30)},
+  cap:[324,308],side:[414,326,1],under:[320,372],flat:[322,309],
+  patchPt:R=>{const a=R()*TAU,u=Math.sqrt(R());return[322+Math.cos(a)*48*u,318+Math.sin(a)*10*u]},
+  surf:x=>x>232&&x<408?312+Math.abs(x-320)*.28:340,walkY:340,target:[566,330],bs:1,
+  rbase:[320,345],rt:[[600,370],[50,380]],
+  bg(c){
+   c.fillStyle=lg(c,0,0,0,340,[[0,'#6F9DB2'],[.65,'#EBC995'],[1,'#F4D6A0']]);c.fillRect(0,0,W,340);
+   c.fillStyle=rg(c,92,268,6,92,268,150,[[0,'rgba(255,236,180,.95)'],[.2,'rgba(255,220,150,.5)'],[1,'rgba(255,220,150,0)']]);c.fillRect(0,100,300,240);
+   c.fillStyle='#46653F';c.beginPath();c.moveTo(0,312);for(let x=0;x<=W;x+=16)c.lineTo(x,300+Math.sin(x*.04)*6+Math.sin(x*.13)*3);c.lineTo(W,340);c.lineTo(0,340);c.fill();
+   c.save();COW(c,560,338,.4,1,0);c.restore();c.fillStyle='rgba(235,200,150,.16)';c.fillRect(470,250,170,90);
+   c.fillStyle=lg(c,0,334,0,H,[[0,'#6E9A45'],[1,'#36581F']]);c.fillRect(0,334,W,H-334);
+   const R=rng(61);for(let i=0;i<160;i++){c.fillStyle=`rgba(30,60,20,${.15+R()*.2})`;ell(c,R()*W,345+R()*95,3+R()*6,1+R()*2,R());c.fill()}
+  },
+  fx(c,t){
+   grassBlades(c,340,0,W,170,6,16,t,7,['#86AE4E','#5F8A32','#9BBE5E']);
+   grassBlades(c,340,470,W,60,18,34,t,8,['#8DB553','#6A9638']);
+   ell(c,320,342,100,22);c.fillStyle='#352010';c.fill();
+   ell(c,320,331,82,22);c.fillStyle='#4C301A';c.fill();
+   ell(c,322,320,56,16);c.fillStyle='#5D3C20';c.fill();
+   ell(c,324,310,32,9);c.fillStyle='#6C4727';c.fill();
+   ell(c,306,316,30,5,-.1);c.fillStyle='rgba(255,236,200,.16)';c.fill();
+   c.strokeStyle='rgba(20,10,4,.5)';c.lineWidth=1;[[270,330,300,326],[340,324,372,330],[300,336,330,340]].forEach(([a,b,d,e])=>{c.beginPath();c.moveTo(a,b);c.lineTo((a+d)/2,b-3);c.lineTo(d,e);c.stroke()});
+   grassBlades(c,346,200,440,50,4,10,t,9,['#86AE4E','#6A9638']);
+  }
+ },
+ soil:{ground:152,origin:[462,292],box:[96,168,610,432],ok:(x,y)=>y>162,
+  clip(c){c.beginPath();c.rect(0,158,W,H)},
+  cap:[486,154],side:[312,96,1],under:[460,300],flat:[478,154],
+  patchPt:R=>[392+R()*196,151+R()*4],surf:()=>152,walkY:152,target:[612,140],bs:.8,loupe:[W-84,84],
+  rbase:[462,296],rt:[[628,250],[140,400],[560,432]],
+  worms:[[180,250],[520,380],[150,380],[400,220],[560,280]],
+  bg(c){
+   c.fillStyle=lg(c,0,0,0,156,[[0,'#8B9C90'],[1,'#DCD5BA']]);c.fillRect(0,0,W,156);
+   c.fillStyle='rgba(120,100,80,.5)';for(let x=10;x<W;x+=62){c.fillRect(x,70,8,86)}c.fillRect(0,92,W,5);c.fillRect(0,124,W,5);
+   c.strokeStyle='#4A7A2E';c.lineWidth=7;c.lineCap='round';c.beginPath();c.moveTo(300,156);c.bezierCurveTo(296,110,312,60,302,6);c.stroke();
+   const lf=(x,y,a,s)=>{c.save();c.translate(x,y);c.rotate(a);c.fillStyle='#5E9038';for(let k=0;k<4;k++){ell(c,14+k*15*s,(k%2?-1:1)*5,10*s,6*s,(k%2?-.5:.5));c.fill()}c.strokeStyle='#3E6A26';c.lineWidth=2;c.beginPath();c.moveTo(0,0);c.lineTo(66*s,0);c.stroke();c.restore()};
+   lf(302,120,-.5,1);lf(300,84,-2.7,1);lf(304,46,-.3,.9);lf(302,26,-2.9,.8);
+   circ(c,346,74,19);c.fillStyle=rg(c,340,66,2,346,74,20,[[0,'#FF8A6A'],[.6,'#D6331F'],[1,'#8E1C10']]);c.fill();c.fillStyle='#3E6A26';for(let k=0;k<5;k++){ell(c,346+Math.cos(k*1.26)*6,57+Math.sin(k*1.26)*2,5,1.6,k*1.26);c.fill()}
+   c.fillStyle=lg(c,0,152,0,H,[[0,'#5A4130'],[1,'#22170E']]);c.fillRect(0,152,W,H);
+   const R=rng(71);for(let i=0;i<380;i++){c.fillStyle=`rgba(${200+R()*40},${180+R()*30},${140+R()*30},${.08+R()*.2})`;circ(c,R()*W,158+R()*280,.7+R()*2.6);c.fill()}
+   c.fillStyle='rgba(150,190,220,.07)';for(let i=0;i<40;i++){ell(c,R()*W,170+R()*260,6+R()*10,2,R()*3);c.fill()}
+   root(c,[[300,154],[306,240],[290,320],[322,430]],6);root(c,[[304,220],[350,250],[400,240],[460,262]],3);root(c,[[296,300],[250,320],[210,316],[170,350]],3);
+   [[304,236,9],[296,320,8],[392,242,6],[224,318,6]].forEach(([x,y,r])=>{ell(c,x,y,r,r*1.1);c.fillStyle='#DCC59E';c.fill();c.strokeStyle='#8E7552';c.lineWidth=1;c.stroke()});
+   c.fillStyle='#4A3424';c.beginPath();c.moveTo(0,152);for(let x=0;x<=W;x+=12)c.lineTo(x,150+Math.sin(x*.3)*1.6);c.lineTo(W,158);c.lineTo(0,158);c.fill();
+  },
+  fx(c,t){
+   this.worms.forEach(([bx,by],i)=>{const cx=bx+Math.sin(t*.25+i)*30,cy=by+Math.cos(t*.2+i*2)*14,a=t*.25+i;c.strokeStyle='#EADCC2';c.lineWidth=2.6;c.lineCap='round';c.beginPath();
+    for(let k=0;k<=14;k++){const s=k*3,x=cx+Math.cos(a)*s+Math.sin(a)*Math.sin(s*.25-t*6)*3,y=cy+Math.sin(a)*s-Math.cos(a)*Math.sin(s*.25-t*6)*3;k?c.lineTo(x,y):c.moveTo(x,y)}c.stroke()});
+  }
+ }
+};
+
+
+const COW=(function(){let c;const TAU2=Math.PI*2;
+function lg(x0,y0,x1,y1,s){const g=c.createLinearGradient(x0,y0,x1,y1);s.forEach(([o,k])=>g.addColorStop(o,k));return g}
+function circ(x,y,r){c.beginPath();c.arc(x,y,Math.max(0,r),0,TAU2)}
+function ell(x,y,rx,ry,rot=0){c.beginPath();c.ellipse(x,y,Math.max(0,rx),Math.max(0,ry),rot,0,TAU2)}
+function blob(x,y,r,n,R){c.beginPath();for(let i=0;i<=n;i++){const a=i/n*TAU2,k=r*(.75+.35*R());const px=x+Math.cos(a)*k,py=y+Math.sin(a)*k;i?c.lineTo(px,py):c.moveTo(px,py)}c.closePath()}
+function cowBodyPath(){c.beginPath();c.moveTo(-96,-150);c.bezierCurveTo(-50,-140,10,-146,58,-152);c.bezierCurveTo(78,-158,98,-163,112,-157);c.bezierCurveTo(124,-153,133,-151,136,-144);c.bezierCurveTo(144,-118,140,-92,124,-74);c.bezierCurveTo(108,-62,90,-58,70,-57);c.bezierCurveTo(30,-50,-30,-48,-72,-55);c.bezierCurveTo(-98,-58,-114,-66,-122,-86);c.bezierCurveTo(-130,-106,-124,-128,-112,-142);c.closePath()}
+function cowLeg(x,y0,hind,far,sw){const col=far?'#CFC9C0':'#F2EEE6',ed=far?'#8E877C':'#6E665C';const pts=hind?[[x,y0],[x-8,-44],[x+12,-30],[x+7+sw,-10]]:[[x,y0],[x+2,-38],[x-1+sw*.6,-12]];c.lineCap='round';c.lineJoin='round';
+ [[19,ed],[16,col]].forEach(([w,cl])=>{c.strokeStyle=cl;c.lineWidth=w;c.beginPath();pts.forEach((p,i)=>i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.stroke()});
+ const hx=pts.at(-1)[0];c.fillStyle=far?'#3A3430':'#1E1B1A';c.beginPath();c.roundRect(hx-10,-12,20,12,[3,3,2,2]);c.fill();c.fillStyle='rgba(30,25,20,.25)';ell(hx+1,-20,7,3);c.fill()}
+function cowNeckHead(hd,t){c.save();c.translate(-100,-124);c.rotate(-.95*hd);
+ c.beginPath();c.moveTo(6,-28);c.bezierCurveTo(-16,-36,-44,-42,-60,-40);c.lineTo(-62,-10);c.bezierCurveTo(-48,10,-26,34,-6,46);c.lineTo(12,30);c.closePath();c.fillStyle='#F2EEE6';c.fill();c.strokeStyle='rgba(30,25,20,.6)';c.lineWidth=1.4;c.stroke();
+ c.save();c.clip();c.fillStyle='#1E1B1A';blob(-44,-22,22,9,rng(31));c.fill();c.fillStyle=lg(0,-40,0,46,[[0,'rgba(255,255,255,0)'],[1,'rgba(0,0,0,.18)']]);c.fillRect(-70,-50,90,100);c.restore();
+ c.beginPath();c.moveTo(-58,-48);c.bezierCurveTo(-70,-54,-84,-52,-90,-44);c.bezierCurveTo(-100,-28,-110,-12,-114,0);c.bezierCurveTo(-116,10,-110,16,-100,15);c.bezierCurveTo(-90,14,-80,10,-70,4);c.bezierCurveTo(-60,-2,-54,-14,-52,-26);c.closePath();c.fillStyle='#1E1B1A';c.fill();
+ c.beginPath();c.moveTo(-76,-50);c.bezierCurveTo(-84,-40,-96,-20,-104,-4);c.lineTo(-98,-2);c.bezierCurveTo(-90,-18,-80,-36,-72,-48);c.closePath();c.fillStyle='#F2EEE6';c.fill();
+ ell(-104,6,10,9,.3);c.fillStyle='#C9A69C';c.fill();c.fillStyle='#4A3530';ell(-110,3,2.4,1.6,.6);c.fill();
+ c.save();c.translate(-60,-46);c.rotate(-.5+Math.sin(t*3)*.08);c.beginPath();c.moveTo(0,0);c.quadraticCurveTo(20,-14,30,-4);c.quadraticCurveTo(18,6,0,4);c.closePath();c.fillStyle='#1E1B1A';c.fill();c.beginPath();c.moveTo(4,0);c.quadraticCurveTo(18,-9,25,-3);c.quadraticCurveTo(16,3,4,2);c.fillStyle='#B88C84';c.fill();c.restore();
+ c.fillStyle='#F7F2EA';ell(-76,-34,4.2,3.4);c.fill();c.fillStyle='#14100E';circ(-77,-34,2.4);c.fill();c.fillStyle='#fff';circ(-78,-35,.8);c.fill();
+ c.restore()}
+function cowMuzzle(bx,gy,s,hd){const th=-.95*hd,x=-104,y=8,rx=x*Math.cos(th)-y*Math.sin(th)-100,ry=x*Math.sin(th)+y*Math.cos(th)-124;return[bx+rx*s,gy+ry*s]}
+function drawCow(bx,gy,s,hd,t,xr=0){c.save();c.translate(bx,gy);c.scale(s,s);const sw=Math.sin(t*1.3)*2;
+ cowLeg(-66,-70,false,true,0);cowLeg(104,-72,true,true,0);
+ c.strokeStyle='#2A2522';c.lineWidth=4;c.lineCap='round';const tw=Math.sin(t*2)*8;c.beginPath();c.moveTo(134,-146);c.bezierCurveTo(146,-118,144+tw*.3,-80,138+tw,-50);c.stroke();c.fillStyle='#1E1B1A';ell(138+tw,-40,6,13,tw*.02);c.fill();
+ cowBodyPath();c.fillStyle='#F2EEE6';c.fill();c.save();cowBodyPath();c.clip();
+ const R=rng(17);c.fillStyle='#1E1B1A';[[-58,-122,30],[18,-132,38],[78,-112,26],[-8,-82,20],[116,-136,16],[48,-70,14]].forEach(([x,y,r])=>{blob(x,y,r,11,R);c.fill()});
+ c.fillStyle=lg(0,-160,0,-50,[[0,'rgba(255,255,255,.18)'],[.55,'rgba(255,255,255,0)'],[1,'rgba(0,0,0,.24)']]);c.fillRect(-140,-170,290,130);
+ c.strokeStyle='rgba(30,25,20,.25)';c.lineWidth=1;c.beginPath();c.moveTo(-100,-104);c.quadraticCurveTo(-92,-80,-80,-62);c.stroke();c.beginPath();c.moveTo(108,-150);c.quadraticCurveTo(116,-110,100,-80);c.stroke();
+ if(xr>0){c.fillStyle=`rgba(12,9,8,${.62*xr})`;c.fillRect(-140,-170,290,130)}
+ c.restore();cowBodyPath();c.strokeStyle='rgba(30,25,20,.65)';c.lineWidth=1.5;c.stroke();
+ ell(78,-58,20,12);c.fillStyle='#E4B5AC';c.fill();c.strokeStyle='rgba(120,70,60,.6)';c.lineWidth=1;c.stroke();c.fillStyle='#D69C92';[70,86].forEach(x=>{c.beginPath();c.roundRect(x-2,-50,4,8,2);c.fill()});
+ cowLeg(-88,-70,false,false,sw);cowLeg(90,-74,true,false,-sw);
+ cowNeckHead(hd,t);c.restore()}
+return (ctx,bx,gy,s,hd,t)=>{c=ctx;drawCow(bx,gy,s,hd,t)}})();
+/* ================= FUNGAL PARTS ================= */
+function drawMushroom(c,x,y,Hh,R,g,lean){
+  if(g<=0)return;const e=back(g),h=Hh*Math.min(1.03,e),cr=R*(.42+.58*Math.min(1.08,e)),dome=1.3-.6*clamp(g),sw=Math.max(3,R*.2);
+  c.save();c.translate(x,y);c.rotate(lean);
+  c.fillStyle='rgba(0,0,0,.28)';ell(c,0,1,sw*2.6,3);c.fill();
+  c.beginPath();c.moveTo(-sw*1.25,0);c.quadraticCurveTo(-sw*.75,-h*.5,-sw*.7,-h);c.lineTo(sw*.7,-h);c.quadraticCurveTo(sw*.75,-h*.5,sw*1.25,0);c.closePath();
+  c.fillStyle=lg(c,-sw,0,sw,0,[[0,'#6E5030'],[.45,'#EAD7AE'],[1,'#94704A']]);c.fill();
+  c.strokeStyle='rgba(90,60,30,.35)';c.lineWidth=.6;for(let i=-2;i<=2;i++){c.beginPath();c.moveTo(i*sw*.35,-2);c.lineTo(i*sw*.26,-h*.68);c.stroke()}
+  if(g>.45){c.fillStyle=`rgba(242,230,204,${clamp((g-.45)*3)})`;ell(c,0,-h*.74,sw*1.55,sw*.45);c.fill();c.strokeStyle='rgba(150,120,80,.5)';c.stroke()}
+  ell(c,0,-h,cr*.96,cr*.21);c.fillStyle='#4E331A';c.fill();
+  c.strokeStyle='rgba(232,208,160,.6)';c.lineWidth=.7;for(let i=0;i<24;i++){const a=i/24*TAU;c.beginPath();c.moveTo(Math.cos(a)*sw*.6,-h+Math.sin(a)*sw*.16);c.lineTo(Math.cos(a)*cr*.93,-h+Math.sin(a)*cr*.2);c.stroke()}
+  const top=-h-cr*.78*dome;
+  c.beginPath();c.moveTo(-cr,-h+1);c.bezierCurveTo(-cr*1.03,-h-cr*.55*dome,-cr*.55,top,0,top);c.bezierCurveTo(cr*.55,top,cr*1.03,-h-cr*.55*dome,cr,-h+1);c.quadraticCurveTo(0,-h-cr*.14,-cr,-h+1);c.closePath();
+  c.fillStyle=rg(c,-cr*.25,top+cr*.25,1,0,-h,cr*1.3,[[0,'#F6CF82'],[.45,'#D39A45'],[1,'#734318']]);c.fill();
+  const R2=rng(Hh*10|0);c.fillStyle='rgba(70,40,14,.55)';for(let i=0;i<16;i++){const u=(R2()-.5)*1.2,v=R2();ell(c,u*cr*.9,top+(Math.abs(u)*.6+v*.3)*cr*dome*.8+3,1.7,1,u);c.fill()}
+  c.fillStyle='rgba(255,246,222,.2)';ell(c,-cr*.3,top+cr*.22,cr*.36,cr*.11*dome,-.25);c.fill();
+  c.restore();
+}
+function drawBracket(c,g,dir){
+  [[-30,46],[0,62],[30,40]].forEach(([dy,r],i)=>{const gi=clamp(g*1.35-i*.18);if(gi<=0)return;const rr=r*back(gi);
+   c.save();c.translate(0,dy);c.scale(dir,1);
+   c.fillStyle='rgba(0,0,0,.3)';c.beginPath();c.ellipse(4,6,rr,rr*.38,0,-Math.PI/2,Math.PI/2);c.fill();
+   const cols=['#2E2017','#B48A5E','#4E3828','#DCC8A2','#6E5139','#EDE2CA','#8A6A4A'];
+   for(let k=0;k<7;k++){const f=1-k*.12;c.beginPath();c.ellipse(0,0,rr*f,rr*.4*f,0,-Math.PI/2,Math.PI/2);c.closePath();c.fillStyle=cols[k];c.fill()}
+   c.beginPath();c.ellipse(0,rr*.06,rr*.97,rr*.12,0,-Math.PI/2,Math.PI/2);c.fillStyle='rgba(240,232,214,.75)';c.fill();
+   c.strokeStyle='rgba(255,240,210,.25)';c.lineWidth=1;c.beginPath();c.ellipse(0,0,rr,rr*.4,0,-Math.PI/2,0);c.stroke();
+   c.restore()});
+}
+function drawTruffle(c,g){const r=38*back(g);if(r<=.5)return;
+  ell(c,0,4,r*1.35,r*1.1);c.fillStyle='rgba(15,8,3,.5)';c.fill();
+  c.strokeStyle='rgba(240,225,190,.35)';c.lineWidth=.8;for(let i=0;i<10;i++){const a=i/10*TAU;c.beginPath();c.moveTo(Math.cos(a)*r,Math.sin(a)*r);c.quadraticCurveTo(Math.cos(a+.3)*r*1.5,Math.sin(a+.3)*r*1.5,Math.cos(a)*r*2,Math.sin(a)*r*1.8);c.stroke()}
+  circ(c,0,0,r);c.fillStyle=rg(c,-r*.35,-r*.4,1,0,0,r*1.1,[[0,'#8E6A4C'],[.55,'#4A3122'],[1,'#1E120A']]);c.fill();
+  const R=rng(9);for(let i=0;i<54;i++){const a=R()*TAU,d=Math.sqrt(R())*r*.92,x=Math.cos(a)*d,y=Math.sin(a)*d,s=2+R()*2.2;c.beginPath();c.moveTo(x,y-s);c.lineTo(x+s,y);c.lineTo(x,y+s*.8);c.lineTo(x-s,y);c.closePath();c.fillStyle=`rgba(${110+R()*40},${80+R()*30},${55+R()*20},.85)`;c.fill();c.fillStyle='rgba(255,230,190,.25)';c.beginPath();c.moveTo(x,y-s);c.lineTo(x+s,y);c.lineTo(x,y);c.fill()}
+}
+function drawCup(c,x,y,r,g){const e=back(g);r*=e;if(r<=1)return;const h=r*.72,ry=r*.32*clamp(g*1.3);
+  c.save();c.translate(x,y);c.fillStyle='rgba(0,0,0,.28)';ell(c,0,2,r*.6,3);c.fill();
+  c.beginPath();c.moveTo(-r,-h);c.bezierCurveTo(-r*.92,-h*.1,-r*.35,0,0,0);c.bezierCurveTo(r*.35,0,r*.92,-h*.1,r,-h);c.ellipse(0,-h,r,ry,0,0,Math.PI);c.closePath();
+  c.fillStyle=lg(c,-r,0,r,0,[[0,'#8E3212'],[.5,'#E57A3A'],[1,'#9A3A16']]);c.fill();
+  ell(c,0,-h,r*.94,ry*.88);c.fillStyle=rg(c,-r*.2,-h-ry*.3,1,0,-h,r,[[0,'#FFB46A'],[.6,'#F07A2C'],[1,'#B9461A']]);c.fill();
+  c.strokeStyle='rgba(255,220,180,.6)';c.lineWidth=1.2;ell(c,0,-h,r,ry);c.stroke();
+  c.restore();
+}
+function drawPilobolus(c,g){const R=rng(77);let top=0;
+  for(let i=0;i<5;i++){const ox=(i-2)*15+(R()-.5)*6,Hh=36+R()*22,gi=clamp(g*1.4-i*.08);if(gi<=0)continue;const h=Hh*ease(gi),ln=(R()-.5)*6+4;
+   c.strokeStyle='rgba(238,236,214,.9)';c.lineWidth=2.6;c.lineCap='round';c.beginPath();c.moveTo(ox,0);c.quadraticCurveTo(ox,-h*.6,ox+ln,-h);c.stroke();
+   if(gi>.45){const v=clamp((gi-.45)*2),vx=ox+ln,vy=-h-9*v;
+    ell(c,vx,vy+7*v,3.5*v,2*v);c.fillStyle='rgba(235,140,40,.9)';c.fill();
+    ell(c,vx,vy,7.5*v,10.5*v);c.fillStyle=rg(c,vx-2,vy-3,1,vx,vy,11*v,[[0,'rgba(255,255,255,.75)'],[.4,'rgba(220,238,255,.35)'],[1,'rgba(190,215,240,.2)']]);c.fill();c.strokeStyle='rgba(255,255,255,.75)';c.lineWidth=1;c.stroke();
+    ell(c,vx,vy-10.5*v,7.5*v,5*v);c.fillStyle='#0E0E0E';c.fill();c.fillStyle='rgba(255,255,255,.5)';circ(c,vx-2.5*v,vy-12*v,1.4*v);c.fill();
+    if(i===2)top=-h-18*v}}
+  return top||-40;
+}
+let PUST=null;
+function drawPustules(c,g){const h=HB();if(!PUST||PUST.k!==ST.hab){const R=rng(13);PUST={k:ST.hab,p:Array.from({length:26},()=>h.patchPt(R))}}
+  const n=Math.floor(g*PUST.p.length),leaf=ST.hab==='leaf';
+  for(let i=0;i<n;i++){const [x,y]=PUST.p[i],s=back(clamp(g*PUST.p.length-i));
+   if(leaf){circ(c,x,y,12*s);c.fillStyle=rg(c,x,y,1,x,y,12*s,[[0,'rgba(236,216,90,.65)'],[1,'rgba(236,216,90,0)']]);c.fill();
+    circ(c,x,y,3.8*s);c.fillStyle=rg(c,x-1,y-1,.5,x,y,4*s,[[0,'#F6B068'],[1,'#9C4412']]);c.fill();
+    c.fillStyle='rgba(230,130,50,.8)';for(let k=0;k<4;k++){circ(c,x+Math.cos(k*1.6+i)*5*s,y+Math.sin(k*1.6+i)*3*s,.9);c.fill()}}
+   else{c.strokeStyle='rgba(240,236,222,.9)';c.lineWidth=.9;for(let k=0;k<4;k++){const a=-Math.PI/2+(k-1.5)*.32,L=(9+k%2*4)*s,ex=x+Math.cos(a)*L,ey=y+Math.sin(a)*L;c.beginPath();c.moveTo(x,y);c.lineTo(ex,ey);c.stroke();c.fillStyle='#F4F0E2';for(let j=0;j<3;j++){circ(c,ex+(j-1)*1.8,ey-1.2*(j%2),1.3*s);c.fill()}}}
+  }
+}
+function drawThallus(c,x,y,p){if(p<=0)return;const R=rng(41);c.save();c.translate(x,y);c.scale(1,.5);
+  for(let i=0;i<24;i++){const an=i/24*TAU+R()*.2,L=(30+R()*42)*p,r=(9+R()*8)*p;circ(c,Math.cos(an)*L,Math.sin(an)*L,r);c.fillStyle='#93A86E';c.fill();c.lineWidth=2;c.strokeStyle='#5D7146';c.stroke()}
+  circ(c,0,0,46*p);c.fillStyle='#ADBF85';c.fill();
+  for(let i=0;i<16;i++){const an=R()*TAU,L=R()*40*p;circ(c,Math.cos(an)*L,Math.sin(an)*L,(6+R()*6)*p);c.fillStyle='#BDCD98';c.fill()}
+  c.fillStyle='rgba(70,110,40,.5)';for(let i=0;i<40;i++){const an=R()*TAU,L=R()*60*p;circ(c,Math.cos(an)*L,Math.sin(an)*L,1.1);c.fill()}
+  c.restore();
+}
+function drawCritter(c,x,y,step,dig){c.save();c.translate(x,y);const bob=dig?Math.sin(step*14)*2:-Math.abs(Math.sin(step*8))*2;
+  c.strokeStyle='#2E2219';c.lineWidth=4.5;c.lineCap='round';[-18,-8,10,20].forEach((lx,i)=>{const sw=dig?0:Math.sin(step*10+i*1.7)*5;c.beginPath();c.moveTo(lx,-12);c.lineTo(lx+sw,0);c.stroke()});
+  ell(c,0,-22+bob,30,15);c.fillStyle=lg(c,0,-38,0,-8,[[0,'#6A5444'],[1,'#3A2C21']]);c.fill();
+  c.strokeStyle='rgba(20,14,10,.5)';c.lineWidth=1;for(let k=-20;k<22;k+=5){c.beginPath();c.moveTo(k,-36+bob);c.lineTo(k-2,-30+bob);c.stroke()}
+  const hy=-22+bob+(dig?9:0);ell(c,-30,hy,13,10,dig?.5:.1);c.fillStyle='#4E3D30';c.fill();
+  ell(c,-43,hy+(dig?6:3),6,5);c.fillStyle='#8A6E5C';c.fill();c.fillStyle='#2A1F18';circ(c,-45,hy+(dig?6:3),1);c.fill();
+  c.fillStyle='#3A2C21';c.beginPath();c.moveTo(-26,hy-8);c.lineTo(-20,hy-16);c.lineTo(-18,hy-6);c.fill();
+  c.fillStyle='#111';circ(c,-34,hy-3,1.6);c.fill();
+  c.strokeStyle='#3A2C21';c.lineWidth=2;c.beginPath();c.moveTo(29,-26+bob);c.quadraticCurveTo(38,-34+bob,34,-22+bob);c.stroke();
+  c.restore()}
+
+/* ================= STAGE ENGINE ================= */
+const ST={hab:'stump',traits:{},t0:{},hy:null,parts:[],landed:[],shots:[],spark:[],acc:0,lastShot:-1,src:{x:270,y:290},health:null,droop:0,droopT:0};
+let NOW=performance.now();
+const HB=()=>HABS[ST.hab];
+const age=k=>ST.traits[k]?(RM?99:(NOW-ST.t0[k])/1000):-1;
+function resetStage(hab){Object.assign(ST,{hab,traits:{},t0:{},hy:null,parts:[],landed:[],shots:[],spark:[],acc:0,lastShot:-1,health:null,droop:0,droopT:0});PUST=null;stageEl.classList.remove('wither');capEl.hidden=true}
+function setTrait(slot,v,delay=0){ST.traits[slot]=v;ST.t0[slot]=performance.now()+delay;if(slot==='feed')ST.hy=null;if(slot==='move'){ST.parts=[];ST.landed=[];ST.shots=[];ST.lastShot=-1}}
+function replay(){const n=performance.now();Object.keys(ST.traits).forEach(k=>{ST.t0[k]=n+({feed:0,body:900,move:2100,tool:2700}[k])});ST.parts=[];ST.landed=[];ST.shots=[];ST.lastShot=-1;ST.spark=[];ST.health=null;ST.droopT=0;ST.hy=null;stageEl.classList.remove('wither')}
+
+function genHy(h,f){const R=rng(ST.hab.length*97+f.length*13+5),[x0,y0,x1,y1]=h.box,ok=(x,y)=>x>x0&&x<x1&&y>y0&&y<y1&&(!h.ok||h.ok(x,y));
+  const n=f==='fast'?760:560,segs=[];let tips=[];const [ox,oy]=h.origin;for(let i=0;i<7;i++)tips.push({x:ox,y:oy,a:i/7*TAU});let guard=0;
+  while(segs.length<n&&tips.length&&guard++<400){const next=[];
+   for(const tp of tips){let a=tp.a+(R()-.5)*.7;const L=5+R()*4;let nx=tp.x+Math.cos(a)*L,ny=tp.y+Math.sin(a)*L,tries=0;
+    while(!ok(nx,ny)&&tries<6){a+=Math.PI*(.35+R()*.5);nx=tp.x+Math.cos(a)*L;ny=tp.y+Math.sin(a)*L;tries++}
+    if(!ok(nx,ny))continue;segs.push([tp.x,tp.y,nx,ny]);next.push({x:nx,y:ny,a});
+    if(R()<.17)next.push({x:nx,y:ny,a:a+(R()<.5?-1:1)*(.6+R()*.5)});if(segs.length>=n)break}
+   tips=next.length>80?next.filter((_,i)=>i%2===0||R()<.6).slice(0,80):next}
+  return segs}
+
+function drawFeed(c){const f=ST.traits.feed,a=age('feed');if(!f||a<0)return;const h=HB();
+  if(f==='lichen'){drawThallus(c,h.origin[0],h.origin[1]+4,ease(a/2.4));return}
+  const sty={lignin:['#F4ECD8',1.15,2.4],fast:['#FFFFFF',.9,1.1],ecm:['#EED9AC',1.2,2.4],biotroph:['#F8F2C2',.95,2.2],predator:['#F3F1E9',1.05,2.2]}[f];
+  const p=ease(a/sty[2]);if(!ST.hy)ST.hy=genHy(h,f);
+  c.save();h.clip(c);c.clip();
+  if(f==='lignin'||f==='fast'){c.fillStyle=rg(c,h.origin[0],h.origin[1],2,h.origin[0],h.origin[1],110*p+1,[[0,`rgba(240,228,200,${.42*p})`],[1,'rgba(240,228,200,0)']]);c.fillRect(0,0,W,H)}
+  if(f==='biotroph'){const R=rng(3);for(let i=0;i<26*p;i++){const [x,y]=h.patchPt?h.patchPt(R):[0,0];circ(c,x,y,7);c.fillStyle='rgba(230,215,100,.22)';c.fill()}}
+  const s=ST.hy,n=Math.floor(s.length*p);c.lineCap='round';
+  c.globalAlpha=.13;c.strokeStyle=sty[0];c.lineWidth=sty[1]*4;c.beginPath();for(let i=0;i<n;i++){const q=s[i];c.moveTo(q[0],q[1]);c.lineTo(q[2],q[3])}c.stroke();c.globalAlpha=.78;c.lineWidth=sty[1];c.stroke();
+  if(p<1){c.globalAlpha=1;c.lineWidth=sty[1]*2;c.strokeStyle='#FFFFFF';c.beginPath();for(let i=Math.max(0,n-60);i<n;i++){const q=s[i];c.moveTo(q[0],q[1]);c.lineTo(q[2],q[3])}c.stroke()}
+  c.globalAlpha=.85;
+  if(f==='predator'){c.strokeStyle='#FFFFFF';c.lineWidth=1;for(let i=17;i<n;i+=37){circ(c,s[i][2],s[i][3],3.6);c.stroke()}}
+  if(f==='fast'){c.strokeStyle='rgba(255,255,255,.7)';c.lineWidth=.7;for(let i=11;i<n;i+=23){const [,,x,y]=s[i];for(let k=0;k<5;k++){const an=k*1.25+i;c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(an)*4,y+Math.sin(an)*4);c.stroke()}}}
+  if(f==='ecm'){c.globalAlpha=1;circ(c,h.origin[0],h.origin[1],26*p);c.fillStyle=rg(c,h.origin[0],h.origin[1],2,h.origin[0],h.origin[1],26*p+1,[[0,'rgba(245,225,175,.5)'],[1,'rgba(245,225,175,0)']]);c.fill()}
+  c.globalAlpha=1;c.restore();
+}
+function drawRhizo(c){if(ST.traits.tool!=='rhizomorphs')return;const a=age('tool');if(a<0)return;const h=HB(),[bx,by]=h.rbase,p=ease(a/2.8);
+  h.rt.forEach(([tx,ty],j)=>{const cp=[[bx,by],[bx+(tx-bx)*.3,Math.max(by,ty)+34+j*8],[bx+(tx-bx)*.7,Math.max(by,ty)+18],[tx,ty]],pts=[];
+   const pj=clamp(p*1.15-j*.08);for(let i=0;i<=40*pj;i++)pts.push(bz(cp,i/40));if(pts.length<2)return;
+   c.lineCap='round';c.lineJoin='round';[[5,'#150B05'],[2.6,'#4E3020'],[.8,'rgba(230,200,160,.35)']].forEach(([w,col])=>{c.strokeStyle=col;c.lineWidth=w;c.beginPath();pts.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke()});
+   const [ex,ey]=pts[pts.length-1];if(pj<1){circ(c,ex,ey,2.8);c.fillStyle='#F6EEDA';c.fill()}})}
+function drawBody(c){const b=ST.traits.body,a=age('body'),h=HB();ST.src={x:h.origin[0],y:h.origin[1]};if(!b||a<0)return;const g=clamp(a/1.7),bs=h.bs,dr=ST.droop;
+  const tf=(x,y)=>{c.save();c.translate(x,y);c.scale(bs,bs);if(dr){c.rotate(.2*dr);c.scale(1,1-.2*dr)}};
+  if(b==='gilled'){const [x,y]=h.cap;tf(x,y);drawMushroom(c,-28,0,68,30,clamp(g*1.25),-.22);drawMushroom(c,42,0,52,24,clamp(g*1.25-.25),.28);drawMushroom(c,8,0,96,40,clamp(g*1.15-.1),.04);c.restore();ST.src={x:x+8*bs,y:y-90*bs*ease(g)}}
+  else if(b==='bracket'){const [x,y,d]=h.side;tf(x,y);drawBracket(c,g,d);c.restore();ST.src={x:x+d*40*bs,y:y+10*bs}}
+  else if(b==='truffle'){const [x,y]=h.under;tf(x,y);drawTruffle(c,g);c.restore();ST.src={x,y}}
+  else if(b==='cup'){const [x,y]=h.flat;tf(x,y);drawCup(c,-40,4,15,clamp(g-.35));drawCup(c,44,3,20,clamp(g-.2));drawCup(c,0,0,30,g);c.restore();ST.src={x,y:y-24*bs}}
+  else if(b==='sporangium'){const [x,y]=h.flat;tf(x,y);const tp=drawPilobolus(c,g);c.restore();ST.src={x:x+4*bs,y:y+tp*bs}}
+  else if(b==='pustule'){drawPustules(c,g);const pp=PUST.p.slice(0,6);ST.src={x:pp.reduce((s,q)=>s+q[0],0)/pp.length,y:pp.reduce((s,q)=>s+q[1],0)/pp.length-4}}
+}
+const SPC={gilled:'#F6E8C6',bracket:'#F7F1E0',truffle:'#B08A62',cup:'#FFDCA8',sporangium:'#161616',pustule:'#EE8A3E'};
+const sporeCol=()=>{const b=ST.traits.body;if(b==='pustule'&&ST.hab!=='leaf')return'#F2EEE0';return SPC[b]||'#F0E8D2'};
+function updDisp(dt){const k=ST.traits.move,a=age('move');if(!k||a<0)return;const s=ST.src,P=ST.parts,h=HB(),rate=RM?.3:1;
+  if(k==='wind'){ST.acc+=dt*40*rate;while(ST.acc>1){ST.acc--;P.push({k:'s',x:s.x+(rnd()-.5)*26,y:s.y+rnd()*6,vx:8+rnd()*22,vy:8+rnd()*14,l:0,m:3+rnd()*3,r:.9+rnd()*1.3,ph:rnd()*6})}
+   P.forEach(p=>{p.l+=dt;p.vx+=24*dt;p.vy-=12*dt;p.x+=p.vx*dt;p.y+=p.vy*dt+Math.sin(p.l*3+p.ph)*.45})}
+  else if(k==='water'){ST.acc+=dt*55*rate;while(ST.acc>1){ST.acc--;P.push({k:'d',x:rnd()*W,y:-10,vy:520+rnd()*140,l:0,m:3})}
+   const add=[];P.forEach(p=>{p.l+=dt;if(p.k==='d'){p.y+=p.vy*dt;const near=Math.abs(p.x-s.x)<70&&p.y>=s.y-4&&p.y<s.y+20;if(near){p.l=99;for(let i=0;i<4;i++)add.push({k:'sp',x:p.x,y:s.y,vx:(rnd()-.5)*230,vy:-90-rnd()*130,l:0,m:1.3})}else if(p.y>=h.surf(p.x)){p.l=99;add.push({k:'ring',x:p.x,y:h.surf(p.x),l:0,m:.35})}}
+    else if(p.k==='sp'){p.vy+=420*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}});P.push(...add)}
+  else if(k==='explosive'){const per=2.3,idx=Math.floor(a/per);if(idx!==ST.lastShot){ST.lastShot=idx;const [tx,ty]=h.target;ST.shots.push({t0:NOW,x0:s.x,y0:s.y,x1:tx+(rnd()-.5)*50,y1:ty+(rnd()-.5)*16})}
+   ST.shots=ST.shots.filter(o=>{const u=(NOW-o.t0)/850;if(u>=1){ST.landed.push({x:o.x1,y:o.y1,k:'blk'});if(ST.landed.length>8)ST.landed.shift();return false}return true})}
+  else if(k==='fragments'){ST.acc+=dt*1.8*rate;while(ST.acc>1){ST.acc--;P.push({k:'f',x:s.x+(rnd()-.5)*40,y:s.y-4,vx:20+rnd()*50,vy:-55-rnd()*40,r:rnd()*6,vr:(rnd()-.5)*6,sz:3+rnd()*3,l:0,m:6})}
+   P.forEach(p=>{p.l+=dt;p.vy+=95*dt;p.vx*=.995;p.x+=p.vx*dt;p.y+=p.vy*dt;p.r+=p.vr*dt;if(p.vy>0&&p.y>=h.surf(p.x)){p.l=99;ST.landed.push({x:p.x,y:h.surf(p.x),k:'blob',sz:p.sz,born:NOW});if(ST.landed.length>10)ST.landed.shift()}})}
+  else if(k==='animals'){const ph=a%8,gy=h.walkY;if(ph>2.2&&ph<4.2&&rnd()<.5)P.push({k:'dirt',x:s.x+20+(rnd()-.5)*20,y:gy,vx:(rnd()-.2)*120,vy:-80-rnd()*90,l:0,m:.8});
+   if(ph>4.4&&rnd()<dt*5){const cx=critterX(ph,s);P.push({k:'drop',x:cx+28,y:gy-14,vy:0,l:0,m:5,gy})}
+   P.forEach(p=>{p.l+=dt;if(p.k==='dirt'){p.vy+=400*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}if(p.k==='drop'){p.vy+=300*dt;p.y=Math.min(p.gy,p.y+p.vy*dt)}})}
+  else if(k==='insects'){ST.acc+=dt*12*rate;while(ST.acc>1){ST.acc--;const f=flyPos(Math.floor(rnd()*3),a,s);P.push({k:'s',x:f[0],y:f[1],vx:0,vy:0,l:0,m:1.4,r:1.1,ph:0})}P.forEach(p=>p.l+=dt)}
+  ST.parts=P.filter(p=>p.l<p.m&&p.x>-30&&p.x<W+30&&p.y>-30&&p.y<H+30);if(ST.parts.length>600)ST.parts.splice(0,ST.parts.length-600)}
+const critterX=(ph,s)=>ph<2.2?W+80-(W+80-(s.x+42))*ease(ph/2.2):ph<4.2?s.x+42:s.x+42-(s.x+180)*((ph-4.2)/3.8);
+const flyPos=(i,a,s)=>[s.x+Math.cos(a*(1.3+i*.4)+i*2.1)*(55+i*18)+Math.sin(a*.7+i)*18,s.y-34-i*8+Math.sin(a*(1.3+i*.4)*1.6+i*2.1)*26];
+function drawDisp(c,t){const k=ST.traits.move,a=age('move');if(!k||a<0)return;const s=ST.src,col=sporeCol(),h=HB();
+  ST.landed.forEach(l=>{if(l.k==='blk'){ell(c,l.x,l.y,3,1.8);c.fillStyle='#111';c.fill()}else{const r=Math.min(l.sz*1.8,(NOW-l.born)/1000*2.5+2);drawThallusMini(c,l.x,l.y,r)}});
+  if(k==='wind'){c.strokeStyle='rgba(255,255,255,.08)';c.lineWidth=1.2;for(let i=0;i<6;i++){const y=50+i*58,x=((t*110+i*137)%(W+300))-150;c.beginPath();c.moveTo(x,y);c.bezierCurveTo(x+40,y-8,x+80,y+8,x+150,y);c.stroke()}}
+  if(k==='insects'){ell(c,s.x,s.y,10,6);c.fillStyle='rgba(58,54,22,.95)';c.fill();c.fillStyle='rgba(255,255,220,.4)';ell(c,s.x-3,s.y-2,3,1.4);c.fill()}
+  if(k==='animals'){const ph=a%8,gy=h.walkY;
+   if(ph<4.4){c.strokeStyle='rgba(240,205,140,.5)';c.lineWidth=1.6;for(let i=0;i<3;i++){c.beginPath();const x0=s.x-14+i*14;for(let y=s.y;y>gy-60;y-=4){const x=x0+Math.sin(y*.12+t*4+i)*4;y===s.y?c.moveTo(x,y):c.lineTo(x,y)}c.setLineDash([5,5]);c.lineDashOffset=-t*20;c.stroke();c.setLineDash([])}}
+   drawCritter(c,critterX(ph,s),gy,t,ph>2.2&&ph<4.2)}
+  ST.parts.forEach(p=>{const al=Math.min(1,p.l*4)*(1-p.l/p.m);
+   if(p.k==='s'){c.fillStyle=col;c.globalAlpha=al;circ(c,p.x,p.y,p.r);c.fill();if(col==='#161616'){c.strokeStyle='rgba(255,255,255,.4)';c.lineWidth=.5;c.stroke()}}
+   else if(p.k==='d'){c.globalAlpha=.55;c.strokeStyle='#D2E6F4';c.lineWidth=1.2;c.beginPath();c.moveTo(p.x,p.y);c.lineTo(p.x-1.5,p.y-11);c.stroke()}
+   else if(p.k==='sp'){c.globalAlpha=1-p.l/p.m;circ(c,p.x,p.y,2);c.fillStyle='rgba(205,230,250,.8)';c.fill();circ(c,p.x,p.y,1);c.fillStyle=col;c.fill()}
+   else if(p.k==='ring'){c.globalAlpha=1-p.l/p.m;c.strokeStyle='#D2E6F4';c.lineWidth=1;ell(c,p.x,p.y,2+p.l*24,1+p.l*6);c.stroke()}
+   else if(p.k==='f'){c.globalAlpha=1;c.save();c.translate(p.x,p.y);c.rotate(p.r);c.fillStyle=ST.traits.feed==='lichen'?'#A9BC88':col;[[0,0],[p.sz*.8,0],[p.sz*.4,-p.sz*.7]].forEach(([x,y])=>{circ(c,x,y,p.sz*.6);c.fill()});c.restore()}
+   else if(p.k==='dirt'){c.globalAlpha=al;circ(c,p.x,p.y,1.6);c.fillStyle='#6B4A2E';c.fill()}
+   else if(p.k==='drop'){c.globalAlpha=al;circ(c,p.x,p.y,2.2);c.fillStyle='#3A2A1A';c.fill();circ(c,p.x,p.y,1);c.fillStyle=col;c.fill()}});
+  c.globalAlpha=1;
+  if(k==='insects'){for(let i=0;i<3;i++){const [x,y]=flyPos(i,a,s),fl=Math.abs(Math.sin(t*50+i));c.fillStyle='rgba(225,235,245,.55)';ell(c,x-2,y-3,4,2*fl+.6,-.6);c.fill();ell(c,x+2,y-3,4,2*fl+.6,.6);c.fill();ell(c,x,y,4.4,2.6);c.fillStyle='#14140E';c.fill();circ(c,x-4,y,1.8);c.fillStyle='#5A1E14';c.fill()}}
+  if(k==='explosive'){ST.shots.forEach(o=>{const u=(NOW-o.t0)/850,cx=(o.x0+o.x1)/2,cy=Math.min(o.y0,o.y1)-170;const P=v=>{const q=1-v;return[q*q*o.x0+2*q*v*cx+v*v*o.x1,q*q*o.y0+2*q*v*cy+v*v*o.y1]};
+   if(u<.3){c.strokeStyle=`rgba(255,240,200,${1-u/.3})`;c.lineWidth=2;circ(c,o.x0,o.y0,4+u*80);c.stroke()}
+   for(let j=8;j>=0;j--){const v=clamp(u-j*.025);const [x,y]=P(v);c.globalAlpha=(1-j/9)*.8;circ(c,x,y,3.4-j*.25);c.fillStyle=j?'rgba(255,240,210,.55)':'#0E0E0E';c.fill()}c.globalAlpha=1})}
+}
+function drawThallusMini(c,x,y,r){c.fillStyle=ST.traits.feed==='lichen'?'#A3B682':sporeCol();c.globalAlpha=.9;for(let k=0;k<5;k++){ell(c,x+Math.cos(k*1.26)*r*.5,y+Math.sin(k*1.26)*r*.2,r*.45,r*.22);c.fill()}c.globalAlpha=1}
+function drawThrive(c,dt){if(ST.health==null||ST.health<75)return;const s=ST.src;if(!RM&&rnd()<dt*14)ST.spark.push({x:s.x+(rnd()-.5)*90,y:s.y+(rnd()-.2)*40,l:0});
+  ST.spark=ST.spark.filter(p=>(p.l+=dt)<2);ST.spark.forEach(p=>{const al=Math.sin(p.l/2*Math.PI);c.fillStyle=`rgba(255,214,120,${al*.9})`;const y=p.y-p.l*22;c.beginPath();c.moveTo(p.x,y-4);c.lineTo(p.x+1.2,y);c.lineTo(p.x,y+4);c.lineTo(p.x-1.2,y);c.fill();c.beginPath();c.moveTo(p.x-4,y);c.lineTo(p.x,y+1.2);c.lineTo(p.x+4,y);c.lineTo(p.x,y-1.2);c.fill()})}
+
+/* ---- microscope loupe ---- */
+const LOUPE={
+ rhizomorphs(c,x,y,r,a){c.fillStyle='#E6DCC4';c.fillRect(x-r,y-r,2*r,2*r);c.fillStyle='rgba(160,130,90,.25)';for(let i=0;i<30;i++){circ(c,x-r+((i*37)%(2*r)),y-r+((i*53)%(2*r)),3+i%4);c.fill()}
+  const y0=y,tip=x+22;c.beginPath();c.moveTo(x-r-5,y0-15);c.lineTo(tip-8,y0-15);c.quadraticCurveTo(tip+16,y0,tip-8,y0+15);c.lineTo(x-r-5,y0+15);c.closePath();c.fillStyle='#2A1A0F';c.fill();
+  c.beginPath();c.moveTo(x-r-5,y0-9);c.lineTo(tip-10,y0-9);c.quadraticCurveTo(tip+4,y0,tip-10,y0+9);c.lineTo(x-r-5,y0+9);c.closePath();c.fillStyle='#F2EAD6';c.fill();
+  c.strokeStyle='#B8A380';c.lineWidth=1;c.setLineDash([6,5]);c.lineDashOffset=-a*30;for(let k=-6;k<=6;k+=3){c.beginPath();c.moveTo(x-r,y0+k);c.lineTo(tip-6,y0+k*.6);c.stroke()}c.setLineDash([]);
+  c.strokeStyle='#F7F1E2';c.lineWidth=1.4;for(let k=0;k<7;k++){const an=(k-3)*.25,L=12+6*Math.sin(a*3+k);c.beginPath();c.moveTo(tip+2,y0);c.lineTo(tip+2+Math.cos(an)*L,y0+Math.sin(an)*L);c.stroke()}
+  c.fillStyle='#2A1A0F';c.font='500 9px "IBM Plex Mono", monospace';c.fillText('melanized rind',x-r+12,y0-22)},
+ hartig(c,x,y,r,a){c.fillStyle='#EAE3C6';c.fillRect(x-r,y-r,2*r,2*r);const cw=32,ch=24,g=6,ox=x-54,oy=y-24;
+  for(let i=0;i<3;i++)for(let j=0;j<4;j++){const cx=ox+j*(cw+g)-(i%2)*14,cy=oy+i*(ch+g);c.beginPath();c.roundRect(cx,cy,cw,ch,6);c.fillStyle='#D6C68E';c.fill();c.strokeStyle='#9C8A52';c.lineWidth=1;c.stroke();c.fillStyle='rgba(120,90,40,.5)';circ(c,cx+cw/2,cy+ch/2,3);c.fill()}
+  const p=ease(a/2.2);c.lineCap='round';
+  const gaps=[];for(let i=0;i<3;i++)for(let j=0;j<4;j++){const cx=ox+j*(cw+g)-(i%2)*14+cw+g/2,cy=oy+i*(ch+g);gaps.push([cx,cy-g/2,cx,cy+ch+g/2])}for(let i=0;i<3;i++){const cy=oy+i*(ch+g)+ch+g/2;gaps.push([x-r,cy,x+r,cy])}
+  [[4,'#A99A6B'],[2.4,'#FBF7EC']].forEach(([w,col])=>{c.strokeStyle=col;c.lineWidth=w;gaps.forEach(([x1,y1,x2,y2])=>{c.beginPath();c.moveTo(x1,y1);c.lineTo(x1+(x2-x1)*p,y1+(y2-y1)*p);c.stroke()})});
+  c.fillStyle='#F5EFDC';c.fillRect(x-r,y-r,2*r,26);c.strokeStyle='#B9A97A';c.lineWidth=1.3;const R=rng(4);for(let i=0;i<34;i++){c.beginPath();const sx=x-r+R()*2*r,sy=y-r+4+R()*20;c.arc(sx,sy,4+R()*6,R()*3,R()*3+2);c.stroke()}
+  if(p>.5)gaps.slice(0,12).forEach(([x1,y1,x2,y2],i)=>{const u=((a*.6+i*.17)%1),v=1-u;circ(c,x1+(x2-x1)*v,y1+(y2-y1)*v,2.2);c.fillStyle='#E59A2A';c.fill();circ(c,x1+(x2-x1)*u,y1+(y2-y1)*u,2);c.fillStyle='#3E8FD0';c.fill()});
+  c.font='500 9px "IBM Plex Mono", monospace';c.fillStyle='#7A5A14';c.fillText('sugar',x-40,y+r-26);c.fillStyle='#1F5E94';c.fillText('P, water',x+2,y+r-26)},
+ haustoria(c,x,y,r,a){const u=a%5.6;c.fillStyle='#EEF2E0';c.fillRect(x-r,y-r,2*r,2*r);const y0=y-10;
+  for(let j=0;j<4;j++){c.beginPath();c.roundRect(x-80+j*42,y0+3,40,72,5);c.fillStyle='#CFE3B0';c.fill();c.strokeStyle='#86A85E';c.lineWidth=1.2;c.stroke();c.fillStyle='#6AA244';for(let k=0;k<4;k++){ell(c,x-70+j*42+(k%2)*16,y0+30+k*9,4,2.4);c.fill()}}
+  c.fillStyle='#D3DE8A';c.fillRect(x-r,y0-2,2*r,5);
+  c.fillStyle='#C77A3A';circ(c,x-42,y0-11,8);c.fill();c.strokeStyle='#7E4618';c.lineWidth=1.4;c.stroke();
+  const gt=clamp(u/1.4);c.strokeStyle='#E8B47E';c.lineWidth=4;c.lineCap='round';c.beginPath();c.moveTo(x-35,y0-6);c.lineTo(x-35+50*gt,y0-6);c.stroke();
+  const ap=clamp((u-1.4)/1);if(ap>0){c.beginPath();c.ellipse(x+16,y0-2,11*ap,11*ap,0,Math.PI,0);c.fillStyle='#9A5420';c.fill()}
+  const pg=clamp((u-2.4)/.6);if(pg>0){c.strokeStyle='#9A5420';c.lineWidth=2.4;c.beginPath();c.moveTo(x+16,y0);c.lineTo(x+16,y0+20*pg);c.stroke()}
+  const hs=clamp((u-3)/1.2);if(hs>0){c.fillStyle='#EBA563';c.strokeStyle='#A85E22';c.lineWidth=1;[[0,28,8,6],[-8,36,6,5],[8,36,6,5],[0,42,6,5]].forEach(([dx,dy,rx,ry])=>{ell(c,x+16+dx,y0+dy,rx*hs,ry*hs);c.fill();c.stroke()})}
+  if(u>4.2){c.fillStyle='#4E8A2E';for(let k=0;k<5;k++){const v=((u-4.2)*.8+k*.2)%1;circ(c,x-10+k*8+(x+16-(x-10+k*8))*v,y0+60-(60-34)*v,1.6);c.fill()}}
+  c.font='500 9px "IBM Plex Mono", monospace';c.fillStyle='#5E6A3A';c.fillText('cuticle',x-r+28,y0-6)},
+ walls(c,x,y,r,a){const u=a%6.2;c.fillStyle='#EFEADB';c.fillRect(x-r,y-r,2*r,2*r);
+  const s=u<3?1:u<3.7?1-.3*clamp((u-3)/.7):u<4.6?.7:.7+.3*clamp((u-4.6)/.6),dry=u>=3&&u<4.9;
+  c.beginPath();for(let k=0;k<=36;k++){const an=k/36*TAU,rr=30*s*(1+(dry?Math.sin(k*5)*.07:0));k?c.lineTo(x+Math.cos(an)*rr,y+Math.sin(an)*rr):c.moveTo(x+Math.cos(an)*rr,y+Math.sin(an)*rr)}c.closePath();
+  c.fillStyle=rg(c,x-6,y-6,2,x,y,30,[[0,'#B5D08E'],[1,'#5E8A3A']]);c.fill();c.strokeStyle='#33241A';c.lineWidth=8;c.stroke();
+  c.fillStyle='rgba(60,110,30,.6)';for(let k=0;k<6;k++){circ(c,x+Math.cos(k)*12*s,y+Math.sin(k*1.7)*10*s,3*s);c.fill()}
+  if(u<3){c.strokeStyle='#8E5BD6';c.lineWidth=2;for(let k=0;k<3;k++){const q=(u*.9+k*.33)%1,inb=q<.5;const sx=x+62,sy=y-62+k*12,hx=x+26,hy=y-20+k*6,ex=x+66,ey=y+4+k*10;const px=inb?sx+(hx-sx)*q*2:hx+(ex-hx)*(q-.5)*2,py=inb?sy+(hy-sy)*q*2:hy+(ey-hy)*(q-.5)*2,dx=inb?hx-sx:ex-hx,dy=inb?hy-sy:ey-hy,L=Math.hypot(dx,dy);c.beginPath();for(let j=0;j<6;j++){const t2=j/5*16,zx=px-dx/L*t2+(j%2?1:-1)*dy/L*3,zy=py-dy/L*t2-(j%2?1:-1)*dx/L*3;j?c.lineTo(zx,zy):c.moveTo(zx,zy)}c.stroke()}}
+  if(u>4.2&&u<5){c.fillStyle='#4A90D0';for(let k=0;k<6;k++){circ(c,x-36+k*14,y-r+((u-4.2)*120+k*9)%60,2);c.fill()}}
+  c.font='500 10px "IBM Plex Mono", monospace';c.fillStyle='#3A2C22';c.textAlign='center';c.fillText(u<3?'UV blocked':dry?'dried out':'revived',x,y+r-12);c.textAlign='left'},
+ fast(c,x,y,r,a){c.fillStyle='#ECEFE4';c.fillRect(x-r,y-r,2*r,2*r);const R0=40,ang=a*1.8,idx=Math.floor(((ang%TAU)+TAU)%TAU/(TAU/4));
+  c.strokeStyle='#A3AD98';c.lineWidth=2;c.setLineDash([3,4]);circ(c,x,y,R0);c.stroke();c.setLineDash([]);
+  const pos=[[0,-1],[1,0],[0,1],[-1,0]];pos.forEach(([dx,dy],i)=>{const px=x+dx*R0,py=y+dy*R0,on=i===idx,sc=on?1.35:1;c.save();c.translate(px,py);c.scale(sc,sc);circ(c,0,0,9);c.fillStyle=on?'#FFF6DE':'#F7F8F1';c.fill();c.strokeStyle=on?'#C98A16':'#A3AD98';c.lineWidth=1.2;c.stroke();
+   c.strokeStyle='#4A4A3A';c.fillStyle='#4A4A3A';c.lineWidth=1;
+   if(i===0){circ(c,0,0,2.4);c.fill()}else if(i===1){circ(c,-3,1,2);c.fill();c.beginPath();c.moveTo(-1,1);c.quadraticCurveTo(2,-1,5,-3);c.stroke()}else if(i===2){c.beginPath();c.moveTo(-5,3);c.lineTo(5,-2);c.moveTo(0,1);c.lineTo(2,-5);c.moveTo(-2,2);c.lineTo(-4,-4);c.stroke()}else{c.beginPath();c.moveTo(0,5);c.lineTo(0,-1);c.stroke();circ(c,0,-3,3);c.fillStyle='#111';c.fill()}c.restore()});
+  const mx=x+Math.cos(ang-Math.PI/2)*R0,my=y+Math.sin(ang-Math.PI/2)*R0;circ(c,mx,my,4);c.fillStyle='#E9A21C';c.fill();
+  c.textAlign='center';c.fillStyle='#2E3328';c.font='700 15px "IBM Plex Mono", monospace';c.fillText('Day '+(idx+1),x,y+5);c.font='500 8.5px "IBM Plex Mono", monospace';c.fillStyle='#6A715E';c.fillText(['spore','germ tube','mycelium','sporangium'][idx],x,y+17);c.textAlign='left'},
+ traps(c,x,y,r,a){const u=a%6.6;c.fillStyle='#EDEBDD';c.fillRect(x-r,y-r,2*r,2*r);
+  const loops=[[x-32,y+8],[x+4,y-10],[x+36,y+12]];c.lineCap='round';
+  [[4,'#B5AE92'],[2.4,'#FAF7EE']].forEach(([w,col])=>{c.strokeStyle=col;c.lineWidth=w;c.beginPath();c.moveTo(x-r,y+20);c.bezierCurveTo(x-30,y+22,x,y+4,x+r,y+24);c.stroke();loops.forEach(([lx,ly])=>{circ(c,lx,ly,11);c.stroke()})});
+  c.fillStyle='rgba(255,255,255,.9)';loops.forEach(([lx,ly],i)=>{circ(c,lx+Math.cos(a*2+i)*11,ly+Math.sin(a*2+i)*11,1.4);c.fill()});
+  const [tx,ty]=loops[1],sx=x+80,sy=y-50,mv=ease(u/2.4),hx=sx+(tx-sx)*mv,hy=sy+(ty-sy)*mv,dx=(sx-tx),dy=(sy-ty),L=Math.hypot(dx,dy),nx=dx/L,ny=dy/L;
+  const amp=u<2.4?4:u<4?7:7*clamp(1-(u-4)/1.4)+1,fade=u>5.8?1-(u-5.8)/.8:1;c.globalAlpha=clamp(fade);
+  const pts=[];for(let k=0;k<=22;k++){const s=k*4.2,w=Math.sin(s*.14-a*(u<4?10:4))*amp*(s/90+.2);pts.push([hx+nx*s-ny*w,hy+ny*s+nx*w])}
+  [[8,'#9C8462'],[6,'#E8D6B4']].forEach(([w,col])=>{c.strokeStyle=col;c.lineWidth=w;c.beginPath();pts.forEach(([px,py],i)=>i?c.lineTo(px,py):c.moveTo(px,py));c.stroke()});
+  if(u>4){c.strokeStyle=`rgba(250,247,238,${clamp((u-4)/.8)})`;c.lineWidth=1.2;c.beginPath();pts.slice(0,Math.floor(22*clamp((u-4)/1.4))).forEach(([px,py],i)=>i?c.lineTo(px,py):c.moveTo(px,py));c.stroke()}
+  c.globalAlpha=1;c.font='500 9px "IBM Plex Mono", monospace';c.fillStyle='#6A6450';c.fillText(u<2.4?'nematode':u<4?'caught':'digested',x-r+24,y+r-16)}
+};
+function drawLoupe(c){const tool=ST.traits.tool,a=age('tool');if(!tool||a<0)return;const h=HB(),op=back(clamp(a/.6)),[cx,cy]=h.loupe||[W-84,84],r=64*op;if(r<2)return;
+  const tgt=tool==='rhizomorphs'?bz([[h.rbase[0],h.rbase[1]],[0,0],[0,0],[h.rt[0][0],h.rt[0][1]]].map((p,i)=>i===1?[h.rbase[0]+(h.rt[0][0]-h.rbase[0])*.3,Math.max(h.rbase[1],h.rt[0][1])+34]:i===2?[h.rbase[0]+(h.rt[0][0]-h.rbase[0])*.7,Math.max(h.rbase[1],h.rt[0][1])+18]:p),.35):(tool==='walls'||tool==='fast')?[ST.src.x,ST.src.y]:h.origin;
+  lens(c,cx,cy,r,tgt,LOUPE[tool],a,op,'×400',OPTS.tool.find(o=>o.id===tool).n,'#E9B44C','tool')}
+
+
+const SPORE={
+ gilled(c,x,y,r,a){c.fillStyle='#EFE6D2';c.fillRect(x-r,y-r,2*r,2*r);
+  c.fillStyle='#D9C49A';c.fillRect(x-9,y-r,18,2*r);c.strokeStyle='rgba(150,120,70,.5)';c.lineWidth=1;for(let k=-6;k<=6;k+=4){c.beginPath();c.moveTo(x+k,y-r);c.bezierCurveTo(x+k+2,y-20,x+k-2,y+20,x+k,y+r);c.stroke()}
+  for(const sd of [-1,1])for(let j=0;j<5;j++){const by=y-46+j*23,bx=x+sd*9,tx=x+sd*30,u=(a*.42+j*.21+(sd>0?0:.5))%1;
+   c.beginPath();c.moveTo(bx,by-4);c.quadraticCurveTo(x+sd*24,by-8,tx,by);c.quadraticCurveTo(x+sd*24,by+8,bx,by+4);c.closePath();c.fillStyle='#FBF4E4';c.fill();c.strokeStyle='#A88A5A';c.lineWidth=1;c.stroke();
+   const nx=x+sd*22;
+   if(u<.25){circ(c,nx-sd*4,by-1.5,2.2);c.fillStyle='#9A6FD0';c.fill();circ(c,nx+sd*1,by+1.5,2.2);c.fillStyle='#3FA6A0';c.fill()}
+   else if(u<.4){circ(c,nx,by,3.2);c.fillStyle='#6E7FC0';c.fill()}
+   else if(u<.55){[[-4,-2],[0,2],[3,-2],[-1,-1]].forEach(([dx,dy],k)=>{circ(c,nx+sd*dx,by+dy,1.5);c.fillStyle=k%2?'#9A6FD0':'#3FA6A0';c.fill()})}
+   else{const g=clamp((u-.55)/.25);[-.95,-.32,.32,.95].forEach((an,k)=>{const A=(sd>0?0:Math.PI)+an,ex=tx+Math.cos(A)*6,ey=by+Math.sin(A)*6;c.strokeStyle='#A88A5A';c.lineWidth=1;c.beginPath();c.moveTo(tx,by);c.lineTo(ex,ey);c.stroke();
+     if(u>.9&&k===1)return;const sx=ex+Math.cos(A)*3*g,sy=ey+Math.sin(A)*3*g;ell(c,sx,sy,3.4*g,2.4*g,A);c.fillStyle='#F2E2B8';c.fill();c.strokeStyle='#8E7040';c.lineWidth=.8;c.stroke()})}
+   if(u>.9){const v=(u-.9)/.1;ell(c,tx+sd*(8+v*8),by-6+v*v*30,3.2,2.3);c.fillStyle='#F2E2B8';c.fill();c.strokeStyle='#8E7040';c.stroke()}}
+  c.fillStyle='rgba(242,226,184,.95)';c.strokeStyle='#8E7040';c.lineWidth=.8;for(let i=0;i<6;i++){const sd=i%2?1:-1,fy=((a*26+i*41)%(2*r))-r;ell(c,x+sd*(52+(i%3)*3),y+fy,3,2.2);c.fill();c.stroke()}},
+ bracket(c,x,y,r,a){c.fillStyle='#CDB48A';c.fillRect(x-r,y-r,2*r,2*r);c.fillStyle='#F6EFE0';c.fillRect(x-18,y-34,36,r+40);c.fillRect(x-r,y-34,8,r+40);c.fillRect(x+r-8,y-34,8,r+40);
+  c.strokeStyle='rgba(120,90,50,.45)';c.lineWidth=1;for(let k=0;k<6;k++){c.beginPath();c.moveTo(x-r,y-r+6+k*5);c.lineTo(x+r,y-r+8+k*5);c.stroke()}
+  for(const sd of [-1,1])for(let j=0;j<5;j++){const by=y-28+j*15,bx=x+sd*18,tx=x+sd*7;c.beginPath();c.moveTo(bx,by-3.5);c.quadraticCurveTo(x+sd*10,by-6,tx,by);c.quadraticCurveTo(x+sd*10,by+6,bx,by+3.5);c.fillStyle='#FFFAF0';c.fill();c.strokeStyle='#A88A5A';c.lineWidth=.9;c.stroke();
+   for(let k=0;k<2;k++){ell(c,tx-sd*1.5,by+(k?3:-3),2,1.5);c.fillStyle='#E6D2A6';c.fill()}}
+  c.fillStyle='#E6D2A6';c.strokeStyle='#8E7040';c.lineWidth=.7;for(let i=0;i<7;i++){const fy=((a*34+i*23)%(r+44))-34;ell(c,x+Math.sin(i*2.3+a)*4,y+fy,2.6,1.9);c.fill();c.stroke()}
+  c.font='500 9px "IBM Plex Mono", monospace';c.fillStyle='#5A4024';c.textAlign='center';c.fillText('pore',x,y+r-6);c.textAlign='left'},
+ truffle(c,x,y,r,a){c.fillStyle='#5A3E2A';c.fillRect(x-r,y-r,2*r,2*r);c.strokeStyle='rgba(236,224,200,.75)';c.lineWidth=3;c.lineCap='round';
+  [[[-64,-30],[-20,-48],[10,-6],[64,-20]],[[-64,30],[-24,4],[24,40],[64,26]],[[-20,64],[-8,30],[18,10],[40,-64]]].forEach(p=>{c.beginPath();c.moveTo(x+p[0][0],y+p[0][1]);c.bezierCurveTo(x+p[1][0],y+p[1][1],x+p[2][0],y+p[2][1],x+p[3][0],y+p[3][1]);c.stroke()});
+  const g=clamp(a/2.4);[[-30,-20],[18,-30],[-8,22],[34,14],[-40,30]].forEach(([dx,dy],i)=>{const cx=x+dx,cy=y+dy;circ(c,cx,cy,13);c.fillStyle='#F2E4C8';c.fill();c.strokeStyle='#8E6A40';c.lineWidth=1.2;c.stroke();
+   const n=2+i%3;for(let k=0;k<n;k++){const an=k/n*TAU+i,sx=cx+Math.cos(an)*(n>1?5:0),sy=cy+Math.sin(an)*(n>1?5:0);ell(c,sx,sy,4.4*g,3.6*g);c.fillStyle='#9A6232';c.fill();
+    if(g>.6){c.strokeStyle='rgba(60,30,10,.7)';c.lineWidth=.6;c.beginPath();c.moveTo(sx-3,sy);c.lineTo(sx+3,sy);c.moveTo(sx,sy-3);c.lineTo(sx,sy+3);c.moveTo(sx-2,sy-2);c.lineTo(sx+2,sy+2);c.stroke()}}});
+  c.font='500 9px "IBM Plex Mono", monospace';c.fillStyle='#F2E4C8';c.textAlign='center';c.fillText('sealed asci',x,y+r-12);c.textAlign='left'},
+ cup(c,x,y,r,a){c.fillStyle='#F6EADA';c.fillRect(x-r,y-r,2*r,2*r);c.fillStyle='#E7955A';c.fillRect(x-r,y+40,2*r,r);
+  const per=2.6,fi=Math.floor(a/per)%7,u=(a%per)/per;
+  for(let i=0;i<7;i++){const ax=x-48+i*16;c.strokeStyle='#E87A2E';c.lineWidth=1.4;c.beginPath();c.moveTo(ax+8,y+40);c.lineTo(ax+8,y-22);c.stroke();circ(c,ax+8,y-23,2);c.fillStyle='#E87A2E';c.fill();
+   c.beginPath();c.roundRect(ax-5,y-16,10,56,[5,5,1,1]);c.fillStyle='#FFF6E8';c.fill();c.strokeStyle='#C77A3A';c.lineWidth=1;c.stroke();
+   const fired=i===fi&&u<.75;if(!fired)for(let k=0;k<8;k++){ell(c,ax,y-11+k*6,3.4,2.4);c.fillStyle='#B85A22';c.fill()}
+   if(i===fi){if(u<.75){c.fillStyle='#FFF6E8';c.save();c.translate(ax+5,y-16);c.rotate(-1.2*clamp(u*6));c.fillRect(-10,-2,10,3);c.restore();
+     for(let k=0;k<8;k++){const v=clamp(u*1.6-k*.02);ell(c,ax+(k-3.5)*v*3,y-14-v*90-k*4*v,3.2,2.3);c.fillStyle='#B85A22';c.fill()}}}}
+  c.font='500 9px "IBM Plex Mono", monospace';c.fillStyle='#7A3A12';c.textAlign='center';c.fillText('8 per ascus',x,y+r-10);c.textAlign='left'},
+ sporangium(c,x,y,r,a){c.fillStyle='#F3E8CC';c.fillRect(x-r,y-r,2*r,2*r);const u=a%4.2,sh=u>3.6?clamp((u-3.6)/.3):0,sw=1+.08*clamp(u/3.6);
+  c.strokeStyle='#BDB59A';c.lineWidth=9;c.lineCap='round';c.beginPath();c.moveTo(x,y+r);c.lineTo(x,y+18);c.stroke();c.strokeStyle='#F7F4E6';c.lineWidth=6;c.stroke();
+  ell(c,x,y+16,9,4);c.fillStyle='#E8962E';c.fill();
+  ell(c,x,y-2,20*sw,24*sw);c.fillStyle='rgba(205,228,248,.55)';c.fill();c.strokeStyle='rgba(120,150,170,.7)';c.lineWidth=1.2;c.stroke();c.fillStyle='rgba(255,255,255,.7)';ell(c,x-7,y-10,4,8,.3);c.fill();
+  const sx=x+sh*60,sy=y-28*sw-sh*90;if(sh<1){c.save();c.translate(sx,sy);c.rotate(sh*2);ell(c,0,0,22,13);c.fillStyle='#141414';c.fill();
+   c.save();ell(c,0,0,22,13);c.clip();c.fillStyle='#3A3220';c.fillRect(0,-14,24,28);ell(c,0,8,9,7);c.fillStyle='#CFC6A8';c.fill();c.fillStyle='#D8C88A';for(let k=0;k<26;k++){circ(c,3+(k*7)%18,-9+((k*5)%14),1.3);c.fill()}c.restore();
+   c.strokeStyle='rgba(255,255,255,.35)';c.lineWidth=1;ell(c,0,0,22,13);c.stroke();c.restore()}
+  if(u<3.6){c.strokeStyle='rgba(240,200,90,.6)';c.lineWidth=1.4;for(let k=0;k<3;k++){c.beginPath();c.moveTo(x-r+6+k*10,y-r+4);c.lineTo(x-14+k*5,y-20);c.stroke()}}
+  c.font='500 9px "IBM Plex Mono", monospace';c.fillStyle='#5A4A20';c.textAlign='center';c.fillText(u<3.6?'turgor rising':'fired!',x+30,y+30);c.textAlign='left'},
+ pustule(c,x,y,r,a){if(ST.hab==='leaf'){c.fillStyle='#CFE3B0';c.fillRect(x-r,y-r,2*r,2*r);c.strokeStyle='#9DBE78';c.lineWidth=1;for(let i=0;i<4;i++)for(let j=0;j<3;j++){c.beginPath();c.roundRect(x-r+4+i*34,y+6+j*22,30,18,6);c.stroke()}
+   c.fillStyle='#E6EFC8';c.fillRect(x-r,y-26,r-24,8);c.fillRect(x+24,y-26,r-24,8);
+   c.save();c.translate(x-24,y-26);c.rotate(-.7);c.fillRect(0,0,16,6);c.restore();c.save();c.translate(x+24,y-26);c.rotate(.7+Math.PI);c.fillRect(0,-6,16,6);c.restore();
+   ell(c,x,y+4,30,12);c.fillStyle='#E7B26A';c.fill();
+   for(let k=0;k<7;k++){const bx=x-24+k*8,lift=(k===3)?((a*.5)%1):0,ty=y-14-Math.abs(k-3)*-2-(k===3?lift*70:0);c.strokeStyle='#D9A060';c.lineWidth=1.2;if(!lift||lift<.05){c.beginPath();c.moveTo(bx,y+4);c.lineTo(bx,ty+6);c.stroke()}
+    ell(c,bx,ty,4.6,6);c.fillStyle='#E8862E';c.fill();c.strokeStyle='#A2501A';c.lineWidth=.8;c.stroke();c.fillStyle='rgba(120,50,10,.7)';for(let q=0;q<5;q++){circ(c,bx-2+(q%3)*2,ty-3+q*1.4,.5);c.fill()}}
+   c.font='500 9px "IBM Plex Mono", monospace';c.fillStyle='#4A6A2A';c.textAlign='center';c.fillText('epidermis',x+22,y-32);c.textAlign='left';return}
+  c.fillStyle='#ECEADF';c.fillRect(x-r,y-r,2*r,2*r);c.fillStyle='rgba(150,190,220,.25)';for(let i=0;i<6;i++){ell(c,x-r+(i*29)%(2*r),y-r+(i*47)%(2*r),12,4,i);c.fill()}
+  c.strokeStyle='#A8A08A';c.lineWidth=5;c.lineCap='round';c.beginPath();c.moveTo(x-8,y+r);c.quadraticCurveTo(x-6,y+10,x,y-14);c.lineTo(x+3,y-30);c.stroke();c.strokeStyle='#F7F5EC';c.lineWidth=3;c.stroke();
+  [[x,y-14],[x+3,y-30]].forEach(([nx,ny],ni)=>{for(let k=0;k<6;k++){if(ni===1&&k===2&&(a%2.6)>1.6)continue;const an=k/6*TAU+ni*.5,cx=nx+Math.cos(an)*9,cy=ny+Math.sin(an)*9;ell(c,cx,cy,4,7,an+Math.PI/2);c.fillStyle='#FBFAF4';c.fill();c.strokeStyle='#8E8670';c.lineWidth=.9;c.stroke();
+   c.beginPath();c.moveTo(cx-Math.cos(an+Math.PI/2)*3.6,cy-Math.sin(an+Math.PI/2)*3.6);c.lineTo(cx+Math.cos(an+Math.PI/2)*3.6,cy+Math.sin(an+Math.PI/2)*3.6);c.stroke()}});
+  const v=a%2.6;if(v>1.6){const q=(v-1.6);ell(c,x+3+Math.cos(2/6*TAU+.5)*9+q*30,y-30+Math.sin(2/6*TAU+.5)*9+q*18,4,7,1);c.fillStyle='#FBFAF4';c.fill();c.strokeStyle='#8E8670';c.stroke()}
+  c.font='500 9px "IBM Plex Mono", monospace';c.fillStyle='#5A5444';c.textAlign='center';c.fillText('2-celled conidia',x,y+r-12);c.textAlign='left'}
+};
+const SPORELAB={gilled:'Basidium: meiosis, then 4 basidiospores',bracket:'Basidia line the tubes; spores fall out the pores',truffle:'Ascospores stay sealed in asci',cup:'Each ascus shoots 8 ascospores',sporangium:'Sporangiospores form by mitosis in a sac',pustule:'Urediniospores burst the leaf epidermis'};
+const LBOX={};
+function lens(c,cx,cy,r,tgt,fn,a,op,tag,txt,tagCol,key){const dx=tgt[0]-cx,dy=tgt[1]-cy,L=Math.hypot(dx,dy)||1;c.strokeStyle='rgba(255,246,220,.55)';c.lineWidth=1.2;c.setLineDash([4,4]);c.beginPath();c.moveTo(cx+dx/L*r,cy+dy/L*r);c.lineTo(tgt[0]-dx/L*9,tgt[1]-dy/L*9);c.stroke();c.setLineDash([]);circ(c,tgt[0],tgt[1],9);c.stroke();
+  c.save();c.shadowColor='rgba(0,0,0,.55)';c.shadowBlur=18;c.shadowOffsetY=6;circ(c,cx,cy,r);c.fillStyle='#E9ECDD';c.fill();c.restore();
+  c.save();circ(c,cx,cy,r-2);c.clip();c.translate(cx,cy);c.scale(r/64,r/64);fn(c,0,0,64,a);c.setTransform(K,0,0,K,0,0);c.fillStyle=rg(c,cx,cy,r*.6,cx,cy,r,[[0,'rgba(0,0,0,0)'],[1,'rgba(0,0,0,.28)']]);c.fillRect(cx-r,cy-r,2*r,2*r);c.restore();
+  circ(c,cx,cy,r);c.strokeStyle=lg(c,cx-r,cy-r,cx+r,cy+r,[[0,'#E8C77A'],[.5,'#9C7A3A'],[1,'#5A4320']]);c.lineWidth=7;c.stroke();
+  c.strokeStyle='rgba(255,255,255,.35)';c.lineWidth=2;c.beginPath();c.arc(cx,cy,Math.max(1,r-10),Math.PI*1.1,Math.PI*1.45);c.stroke();
+  if((cv.clientWidth||W)<520)txt='';const fs=tagFs(10.5);c.font=`500 ${fs}px "IBM Plex Mono", monospace`;const t1=txt?tag+'  ':tag,w1=c.measureText(t1).width,w2=c.measureText(txt).width,tw=w1+w2,hh=fs*1.9;let lx=cx-tw/2-8;lx=Math.max(6,Math.min(W-tw-22,lx));
+  LBOX[key]=[lx,cy+r+8,tw+16,hh];c.globalAlpha=Math.min(1,op);c.fillStyle='rgba(10,14,12,.82)';c.beginPath();c.roundRect(lx,cy+r+8,tw+16,hh,hh/2);c.fill();c.fillStyle=tagCol;c.fillText(t1,lx+8,cy+r+8+hh*.68);c.fillStyle='#F2E7C8';c.fillText(txt,lx+8+w1,cy+r+8+hh*.68);c.globalAlpha=1}
+function tagFs(base){const cw=cv.clientWidth||W;return Math.max(base,10*W/cw)}
+function sporeLoupePos(){const h=HB(),tl=h.loupe||[W-84,84];return tl[0]>W/2?[80,80]:[W-80,80]}
+function drawSporeLoupe(c){const b=ST.traits.body,a=age('body')-.9;if(!b||a<0)return;const op=back(clamp(a/.6)),r=54*op;if(r<2)return;const [cx,cy]=sporeLoupePos(),o=opt('body',b),sx=o.sex==='Sexual';
+  lens(c,cx,cy,r,[ST.src.x,ST.src.y],SPORE[b],a,op,sx?'SEXUAL':'ASEXUAL',b==='pustule'&&ST.hab!=='leaf'?'Conidiophore: conidia by mitosis':SPORELAB[b],sx?'#E7B6D6':'#9ED3D0','spore')}
+/* ---- callout labels on the scene ---- */
+const FEEDTAG={lignin:'white-rot mycelium',fast:'fast-growing mycelium',ecm:'mycorrhizal hyphae',biotroph:'biotrophic hyphae',lichen:'lichen thallus',predator:'hunting mycelium'};
+const BODYTAG={gilled:'gilled basidiomata',bracket:'bracket (poroid basidioma)',truffle:'truffle (hypogeous ascoma)',cup:'apothecia (cups)',sporangium:'sporangiophores',pustule:'uredinia'};
+function sporeName(){const b=ST.traits.body;if(!b)return'spores';if(b==='pustule')return ST.hab==='leaf'?'urediniospores':'conidia';return opt('body',b).sp}
+function pillTag(c,ax,ay,txt,dy,boxes,al){const fs=tagFs(11.5);c.font=`600 ${fs}px "Figtree", system-ui, sans-serif`;const tw=c.measureText(txt).width,w=tw+fs*1.4,hh=fs*1.75;let x=ax-w/2,y=ay+dy-hh/2;
+  const fit=()=>{x=Math.max(6,Math.min(W-w-6,x));y=Math.max(6,Math.min(H-hh-6,y))};fit();
+  const hits=(x,y)=>boxes.some(b=>x<b[0]+b[2]+4&&x+w+4>b[0]&&y<b[1]+b[3]+4&&y+hh+4>b[1]);
+  if(hits(x,y)){const x0=x,y0=y;let done=false;for(const ox of [0,-w*.6,w*.6,-w,w])for(let k=1;k<9&&!done;k++)for(const sg of [1,-1]){x=x0+ox;y=y0+sg*Math.sign(dy||1)*(k%2?1:1)*Math.ceil(k/1)*(hh+4)*(sg>0?1:1)*(1);fit();if(!hits(x,y)){done=true;break}}if(!done){x=x0;y=y0}}
+  boxes.push([x,y,w,hh]);c.globalAlpha=al;
+  const px=Math.max(x+8,Math.min(x+w-8,ax)),py=ay<y?y:ay>y+hh?y+hh:y+hh/2;c.strokeStyle='rgba(255,246,220,.8)';c.lineWidth=1.1;c.beginPath();c.moveTo(ax,ay);c.lineTo(px,py);c.stroke();circ(c,ax,ay,2.6);c.fillStyle='#FFF6DC';c.fill();
+  c.fillStyle='rgba(10,14,12,.84)';c.beginPath();c.roundRect(x,y,w,hh,hh/2);c.fill();c.strokeStyle='rgba(255,246,220,.28)';c.lineWidth=1;c.stroke();c.fillStyle='#F6EDD5';c.fillText(txt,x+fs*.7,y+hh*.69);c.globalAlpha=1}
+function drawTags(c){const h=HB(),boxes=[],s=ST.src;
+  if(ST.traits.tool){const [cx,cy]=h.loupe||[W-84,84];boxes.push([cx-70,cy-70,140,140]);LBOX.tool&&boxes.push(LBOX.tool)}
+  if(ST.traits.body){const [cx,cy]=sporeLoupePos();boxes.push([cx-58,cy-58,116,116]);LBOX.spore&&boxes.push(LBOX.spore)}
+  const items=[];
+  const f=ST.traits.feed,af=age('feed');if(f&&af>.8){let p=null;if(f==='lichen')p=[h.origin[0]-24,h.origin[1]+2];else if(ST.hy&&ST.hy.length){const q=ST.hy[Math.floor(ST.hy.length*.42)];p=[q[2],q[3]]}if(p)items.push([p,FEEDTAG[f],34,clamp((af-.8)/.5)])}
+  const b=ST.traits.body,ab=age('body');if(b&&ab>1){items.push([[s.x,s.y],b==='pustule'&&ST.hab!=='leaf'?'conidiophores':BODYTAG[b],-34,clamp((ab-1)/.5)])}
+  const k=ST.traits.move,am=age('move');if(k&&am>1.2){let p,txt;
+   if(k==='wind'){const ps=ST.parts.filter(q=>q.k==='s'&&q.l>.8&&q.l<2.4);p=ps.length>4?[ps.reduce((a,q)=>a+q.x,0)/ps.length,ps.reduce((a,q)=>a+q.y,0)/ps.length]:[s.x+70,s.y-30];txt=sporeName()+' on the wind'}
+   else if(k==='animals'){p=[critterX(am%8,s),h.walkY-34];txt='animal eats it, spores pass the gut'}
+   else if(k==='explosive'){p=[h.target[0],h.target[1]];txt=ST.traits.body==='sporangium'?'sporangia land here':'spores land here'}
+   else if(k==='water'){p=[s.x+36,s.y-8];txt='rain splash spreads '+sporeName()}
+   else if(k==='fragments'){p=[s.x+28,s.y-8];txt='soredia and isidia'}
+   else if(k==='insects'){p=flyPos(0,am,s);txt='flies carry the spores'}
+   items.push([p,txt,-30,clamp((am-1.2)/.5)])}
+  items.forEach(([p,t,dy,al])=>pillTag(c,p[0],p[1],t,dy,boxes,al))}
+/* ---- loop ---- */
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),stageEl=document.getElementById('stage'),capEl=document.getElementById('cap'),hudEl=document.getElementById('hud');
+let K=1,bgC=document.createElement('canvas'),bgKey='',lastTs=0;
+function ensureSize(){const dpr=Math.min(2,window.devicePixelRatio||1),w=Math.round(cv.clientWidth*dpr);if(w>0&&cv.width!==w){cv.width=w;cv.height=Math.round(w*H/W);K=w/W;bgKey=''}}
+function frame(ts){requestAnimationFrame(frame);if(stageEl.hidden)return;const dt=Math.min(.05,(ts-(lastTs||ts))/1000);lastTs=ts;NOW=ts;ensureSize();if(!cv.width)return;
+  const c=ctx,h=HB(),t=ts/1000,key=ST.hab+'|'+cv.width;
+  if(bgKey!==key){bgC.width=cv.width;bgC.height=cv.height;const b=bgC.getContext('2d');b.setTransform(K,0,0,K,0,0);h.bg(b);bgKey=key}
+  c.setTransform(1,0,0,1,0,0);c.drawImage(bgC,0,0);c.setTransform(K,0,0,K,0,0);
+  if(h.fx)h.fx(c,t);drawFeed(c);drawRhizo(c);drawBody(c);updDisp(dt);drawDisp(c,t);drawThrive(c,dt);drawTags(c);drawSporeLoupe(c);drawLoupe(c);
+  ST.droop+=(ST.droopT-ST.droop)*Math.min(1,dt*1.2)}
+requestAnimationFrame(frame);
+
+/* ================= UI ================= */
+const KEY='hyphaLab.v1';
+let S={view:'home',m:0,step:0,pick:{},scores:{}};
+function save(){try{localStorage.setItem(KEY,JSON.stringify({scores:S.scores}))}catch(e){}}
+function load(){try{const d=JSON.parse(localStorage.getItem(KEY)||'{}');if(d.scores)S.scores=d.scores}catch(e){}}
+const opt=(slot,id)=>OPTS[slot].find(o=>o.id===id);
+function grade(m,pick){return SLOTS.map(sl=>{const g=m.s[sl.id],c=pick[sl.id];if(c===g.best)return{slot:sl,c,kind:'g',pts:25,text:g.why};if(g.part[c])return{slot:sl,c,kind:'p',pts:g.part[c][0],text:g.part[c][1],best:g.best};return{slot:sl,c,kind:'b',pts:0,text:g.miss,best:g.best}})}
+const total=()=>Object.values(S.scores).reduce((a,b)=>a+b,0);
+const rank=v=>v>=90?'Master mycologist':v>=70?'Fruiting body':v>=45?'Mycelium':v>=20?'Germ tube':'Spore';
+const pad=i=>String(i+1).padStart(2,'0');
+let THUMBS={};
+function thumbs(){if(Object.keys(THUMBS).length)return;M.forEach(m=>{const cc=document.createElement('canvas');cc.width=320;cc.height=220;const b=cc.getContext('2d');b.setTransform(.5,0,0,.5,0,0);const h=HABS[m.id];h.bg(b);h.fx&&h.fx.call(h,b,0);try{THUMBS[m.id]=cc.toDataURL('image/jpeg',.82)}catch(e){THUMBS[m.id]=''}})}
+function showCap(k,v){capEl.hidden=false;capEl.innerHTML=`<span class="k">${k}</span>${v}`;capEl.classList.remove('show');void capEl.offsetWidth;capEl.classList.add('show')}
+let popSlot=null;
+function hud(){hudEl.innerHTML=SLOTS.map((s,i)=>{const v=S.pick[s.id];return`<div class="chip ${v?'set':''} ${S.view==='mission'&&i===S.step?'cur':''} ${popSlot===s.id?'pop':''}"><span class="k">${s.label}</span><span class="v">${v?opt(s.id,v).n:'Not chosen'}</span></div>`}).join('');popSlot=null}
+const BRAND=`<svg viewBox="0 0 26 26" aria-hidden="true"><path d="M3 13 Q13 0 23 13 Q13 10.5 3 13Z" fill="#E9B44C"/><path d="M11 12.6 L10.4 23 L15.6 23 L15 12.6Z" fill="#EEEADF"/><path d="M4 24.5 Q9 21 13 23.5 Q17 21 22 24.5" stroke="#A6C682" stroke-width="1.3" fill="none"/></svg>`;
+function bar(){document.getElementById('bar').innerHTML=`<button class="brand" data-a="home" aria-label="Hypha Lab home">${BRAND}Hypha Lab</button><span class="pill"><b>${Object.keys(S.scores).length}</b>/${M.length} habitats · ${total()} pts</span>`}
+
+function home(){thumbs();return`<section class="hero fade"><span class="label">A mycology field game</span>
+  <h1>Grow a fungus that <span class="sci">survives.</span></h1>
+  <p>Every habitat poses a problem. Pick how your fungus feeds, where it makes spores, how those spores travel, and the one structure that gives it an edge. Watch it grow, then meet the real fungus that solved the same problem.</p></section>
+  <ol class="how">${SLOTS.map(s=>`<li><b>${s.label}</b>${s.q.replace('your fungus ','it ').replace('its ','')}</li>`).join('')}</ol>
+  <div class="missions">${M.map((m,i)=>{const sc=S.scores[m.id];return`<button class="mcard" data-a="start" data-i="${i}"><img src="${THUMBS[m.id]}" alt=""><span><span class="label">Habitat ${pad(i)}</span><h3>${m.name}</h3><span class="where">${m.where}</span></span><span class="st ${sc!=null?'done':''}">${sc!=null?sc+'/100':'Play'}</span></button>`}).join('')}</div>
+  ${Object.keys(S.scores).length===M.length?`<button class="btn grow" data-a="final">See your final rank</button>`:''}
+  <p class="foot">Six habitats, about two minutes each. Your scores are saved in this browser.</p>`}
+function mission(){const m=M[S.m],sl=SLOTS[S.step],ch=S.pick[sl.id],last=S.step===3;
+  return`<article class="brief"><div class="head"><span class="label">Habitat ${pad(S.m)} · ${m.where}</span><h2>${m.name}</h2><p>${m.brief}</p></div>
+   <div class="cond">${m.cond.map(([k,v])=>`<div><span class="label">${k}</span>${v}</div>`).join('')}</div></article>
+  <div class="steps">${SLOTS.map((s,i)=>`<span class="${i===S.step?'now':S.pick[s.id]?'on':''}"></span>`).join('')}</div>
+  <div class="q"><span class="label">Trait ${S.step+1} of 4 · ${sl.label}</span><h3>${sl.q}</h3></div>
+  <div class="opts">${OPTS[sl.id].map(o=>`<button class="opt ${ch===o.id?'sel':''}" data-a="pick" data-v="${o.id}" aria-pressed="${ch===o.id}">${o.sex?`<em class="tag ${o.sex==='Sexual'?'sx':'ax'}">${o.sex} · ${o.sp}</em>`:''}<strong>${o.n}</strong><span>${o.d}</span></button>`).join('')}</div>
+  <div class="nav"><button class="btn ghost" data-a="back">${S.step===0?'All habitats':'Back'}</button>${last?`<button class="btn grow" data-a="grow" ${ch?'':'disabled'}>Grow it</button>`:`<button class="btn" data-a="next" ${ch?'':'disabled'}>Next trait</button>`}</div>`}
+function ringSvg(v){const r=38,c=2*Math.PI*r,col=v>=75?'var(--good)':v>=45?'var(--part)':'var(--bad)';return`<svg class="ring" viewBox="0 0 92 92"><circle cx="46" cy="46" r="${r}" fill="none" stroke="var(--line)" stroke-width="7"/><circle cx="46" cy="46" r="${r}" fill="none" stroke="${col}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c*v/100} ${c}" transform="rotate(-90 46 46)"/><text x="46" y="55" text-anchor="middle" font-size="26">${v}</text></svg>`}
+function result(){const m=M[S.m],g=grade(m,S.pick),v=g.reduce((a,b)=>a+b.pts,0),next=M.findIndex((x,i)=>i>S.m&&S.scores[x.id]==null),all=Object.keys(S.scores).length===M.length;
+  const verdict=v>=90?'Your fungus thrives here.':v>=65?'It survives, with a few weak spots.':v>=40?'It struggles to hang on.':'It would not last a week here.';
+  return`<div class="scorehead fade">${ringSvg(v)}<div><span class="label">${m.name}</span><h2>${verdict}</h2><p>${g.filter(x=>x.kind==='g').length} of 4 traits match the real solution.</p></div></div>
+  <div class="fb">${g.map(x=>`<div class="fbi"><span class="mark ${x.kind}" aria-hidden="true">${x.kind==='g'?'✓':x.kind==='p'?'~':'✕'}</span><div class="t"><span class="pts">+${x.pts}</span><b>${x.slot.label}: ${opt(x.slot.id,x.c).n}.</b> ${x.text}${x.best?`<span class="ans">Best fit: ${opt(x.slot.id,x.best).n}</span>`:''}</div></div>`).join('')}</div>
+  <section class="reveal"><span class="label">The real fungus · ${m.r.group}</span><h3>${m.r.sci}</h3><span class="common">${m.r.common}</span><div class="cycle"><div><span class="tag sx">Sexual</span>${m.r.sex}</div><div><span class="tag ax">Asexual</span>${m.r.asex}</div></div><p class="txt">${m.r.text}</p></section>
+  <div class="nav"><button class="btn ghost" data-a="retry">Try again</button>${next>=0?`<button class="btn" data-a="start" data-i="${next}">Next habitat</button>`:all?`<button class="btn grow" data-a="final">Final rank</button>`:`<button class="btn" data-a="home">All habitats</button>`}</div>`}
+function final(){const avg=Math.round(total()/M.length);return`<div class="final fade"><span class="label">Field season complete · average ${avg}/100</span><h2>${rank(avg)}</h2>
+  <p>${avg>=70?'You read each habitat and matched fungal structures to the problem it posed. That is how mycologists think about form and function.':'Replay any habitat and read the feedback. Each trait choice is a hypothesis about what the environment demands.'}</p>
+  <div class="table">${M.map(m=>`<div><span>${m.name} · <span class="sci">${m.r.sci}</span></span><span>${S.scores[m.id]??'–'}</span></div>`).join('')}</div>
+  <div class="nav"><button class="btn ghost" data-a="reset">Start over</button><button class="btn" data-a="home">All habitats</button></div></div>`}
+
+const NARROW=matchMedia('(max-width:899px)');
+function firstSentence(t){const m=t.match(/^.*?[.!?](\s|$)/);return m?m[0].trim():t}
+function infoHTML(){const v=S.view;
+  if(v==='mission'){const m=M[S.m],sl=SLOTS[S.step],ch=S.pick[sl.id],o=ch&&opt(sl.id,ch),hk=S.m+'-'+S.step,shown=S.hint&&S.hint[hk];
+   return`<span class="label">What's happening</span>${o?`<h4>${o.n}${o.sex?`<em class="tag ${o.sex==='Sexual'?'sx':'ax'}">${o.sex} · ${o.sp}</em>`:''}</h4><p>${SEE[sl.id][ch]}</p><p class="look">Look for the <b>labels</b> on the scene${sl.id==='body'||sl.id==='tool'?' and the <b>zoomed view</b>':''}. Not sure it fits this habitat? Try another option and compare.</p>`:`<p class="muted">Pick a ${sl.label.toLowerCase()} trait. Your fungus grows it in the scene, with labels${sl.id==='body'||sl.id==='tool'?' and a zoomed-in view':''}, so you can see what it does before you commit.</p>`}
+   <button class="hintb" data-a="hint">${shown?'Hide the clue':'Need a clue about this habitat?'}</button>${shown?`<p class="clue">${m.s[sl.id].miss}</p>`:''}`}
+  if(v==='result'){const m=M[S.m],g=grade(m,S.pick),sc=g.reduce((a,b)=>a+b.pts,0),d=[.2,1.1,2.3,2.9],weak=g.filter(x=>x.kind==='b').map(x=>x.slot.label.toLowerCase()),st={g:'fits',p:'partly fits',b:'does not fit'};
+   return`<span class="label">Growing season · what happened</span><ol class="log">${g.map((x,i)=>`<li style="--d:${d[i]}s"><span class="mk ${x.kind}">${x.kind==='g'?'✓':x.kind==='p'?'~':'✕'}</span><div><b>${x.slot.label}: ${opt(x.slot.id,x.c).n}</b><em class="st ${x.kind}">${st[x.kind]}</em><br>${firstSentence(SEE[x.slot.id][x.c])}</div></li>`).join('')}
+   <li class="out" style="--d:3.8s"><div><b>Outcome ${sc}/100.</b> ${g.filter(x=>x.kind==='g').length} of 4 traits fit ${m.name.toLowerCase()}.${weak.length?` Weakest link: ${weak.join(' and ')}. Read why on the ${NARROW.matches?'feedback below':'right'}.`:' Every piece works together.'}</div></li></ol>`}
+  return''}
+function demo(){resetStage('stump');S.pick={};const n=performance.now();ST.traits={feed:'lignin',body:'gilled',move:'wind',tool:'rhizomorphs'};ST.t0={feed:n+300,body:n+1500,move:n+2900,tool:n+3500};showCap('Preview · Habitat 01','A wood decomposer fruiting on an oak stump')}
+function render(){bar();const v=S.view,app=document.getElementById('app');
+  stageEl.hidden=v==='final';document.getElementById('play').className='play'+(v==='final'?'':' two');
+  stageEl.classList.toggle('stick',v==='mission');hudEl.hidden=v==='home';
+  app.innerHTML=({home,mission,result,final})[v]();if(v!=='home')hud();
+  const ih=infoHTML(),ie=document.getElementById('info');ie.hidden=!ih||NARROW.matches;ie.innerHTML=NARROW.matches?'':ih;
+  if(ih&&NARROW.matches){const an=app.querySelector(v==='mission'?'.q':'.scorehead');if(an)an.insertAdjacentHTML('afterend',`<div class="info">${ih}</div>`)}}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const a=b.dataset.a,sl=SLOTS[S.step];let top=true;
+  if(a==='home'){S.view='home';demo()}
+  else if(a==='start'){S.m=+b.dataset.i;S.step=0;S.pick={};S.view='mission';resetStage(M[S.m].id)}
+  else if(a==='pick'){const v=b.dataset.v;top=false;S.pick[sl.id]=v;popSlot=sl.id;setTrait(sl.id,v);{const o=opt(sl.id,v);showCap(sl.label+(o.sex?' · '+o.sex+' · '+o.sp:''),o.n)}}
+  else if(a==='next'){S.step++;top=false}
+  else if(a==='hint'){S.hint=S.hint||{};const hk=S.m+'-'+S.step;S.hint[hk]=!S.hint[hk];top=false}
+  else if(a==='back'){if(S.step===0){S.view='home';demo()}else{S.step--;top=false}}
+  else if(a==='grow'){const m=M[S.m],v=grade(m,S.pick).reduce((x,y)=>x+y.pts,0);S.scores[m.id]=Math.max(v,S.scores[m.id]??0);save();S.view='result';replay();showCap('Growing season','Watching your fungus develop');
+   const hab=m.id;setTimeout(()=>{if(S.view!=='result'||ST.hab!==hab)return;ST.health=v;ST.droopT=v<50?1:0;stageEl.classList.toggle('wither',v<50);showCap('Outcome · '+v+'/100',v>=75?'Thriving and spreading':v>=50?'Hanging on':'Withering away')},RM?50:3600)}
+  else if(a==='retry'){S.step=0;S.pick={};S.view='mission';resetStage(M[S.m].id)}
+  else if(a==='final'){S.view='final'}
+  else if(a==='reset'){S.scores={};save();S.view='home';demo()}
+  render();
+  if(top)window.scrollTo({top:0,behavior:'instant'});
+  else if(a==='next'||a==='back'){const q=document.querySelector('.q');if(q&&q.getBoundingClientRect().top<0)q.scrollIntoView({block:'center'})}
+});
+function start(data){load();if(data&&data.view){S=Object.assign(S,data)}if(S.view==='home')demo();else if(S.view!=='final'){resetStage(M[S.m].id);Object.entries(S.pick).forEach(([k,v])=>setTrait(k,v,-9999))}render()}
+window.claude?.hot?.snapshot?.(()=>S);
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
+
+</body>
+</html>
