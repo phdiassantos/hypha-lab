@@ -14,6 +14,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="author" content="Pedro H. D. Santos, LSU Alexandria">
 <style>[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<script defer src="https://cloud.umami.is/script.js" data-website-id="cd5c3769-ec22-422f-917a-545d3944d830" data-domains="phdiassantos.github.io"></script>
 <title>Hypha Lab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -921,6 +922,18 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b
 function start(data){load();if(data&&data.view){S=Object.assign(S,data)}if(S.view==='home')demo();else if(S.view!=='final'){resetStage(M[S.m].id);Object.entries(S.pick).forEach(([k,v])=>setTrait(k,v,-9999))}render()}
 window.claude?.hot?.snapshot?.(()=>S);
 window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+
+/* ---- anonymous play metrics (Umami; no-op when the script is absent) ---- */
+(function(){const T=(n,d)=>{try{window.umami&&window.umami.track(n,d)}catch(e){}};let t0=Date.now(),act=0;
+ document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const a=b.dataset.a;
+  if(a==='start'){t0=Date.now();T('lab_start',{habitat:M[+b.dataset.i].id})}
+  else if(a==='retry'){t0=Date.now();T('lab_retry',{habitat:M[S.m].id})}
+  else if(a==='grow'){const m=M[S.m],g=grade(m,S.pick),v=g.reduce((x,y)=>x+y.pts,0);T('lab_score',{habitat:m.id,score:v,traits_right:g.filter(x=>x.kind==='g').length,feed:S.pick.feed,body:S.pick.body,move:S.pick.move,tool:S.pick.tool,seconds:Math.round((Date.now()-t0)/1000)})}
+  else if(a==='hint'){T('lab_hint',{habitat:M[S.m].id,trait:SLOTS[S.step].id})}
+  else if(a==='final'){const n=Object.keys(S.scores).length;T('lab_final',{habitats:n,average:n?Math.round(total()/n):0})}},true);
+ setInterval(()=>{if(document.visibilityState==='visible'&&S.view!=='home')act+=1},1000);
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&act>=5){T('lab_time',{seconds:act});act=0}});
+})();
 </script>
 
 </body>
